@@ -1,0 +1,8 @@
+# Core dependencies for Cloud Functions deployment
+functions-framework==3.9.2
+firebase-admin==7.1.0
+google-cloud-tasks==2.20.0
+lxml==6.0.2
+python-dateutil==2.9.0.post0
+pytz==2025.2
+requests==2.32.5

@@ -1,0 +1,17 @@
+[project]
+name = "mounties-discord-publisher"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.13"
+dependencies = [
+    "firebase-admin>=7.1.0",
+    "functions-framework>=3.9.2",
+    "google-cloud-tasks>=2.20.0",
+    "lxml>=6.0.2",
+    "pytest>=8.4.2",
+    "pytest-mock>=3.15.1",
+    "python-dateutil>=2.9.0.post0",
+    "pytz>=2025.2",
+    "requests>=2.32.5",
+]

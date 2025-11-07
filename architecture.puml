@@ -1,0 +1,57 @@
+@startuml Mountaineers Activities Discord Publisher
+
+!define CLOUD #E1F5FE
+!define FUNCTION #B3E5FC
+!define QUEUE #FFF9C4
+!define STORAGE #C8E6C9
+!define EXTERNAL #FFE0B2
+
+skinparam backgroundColor white
+skinparam componentStyle rectangle
+
+' External systems
+rectangle "Mountaineers\nWebsite" as mountaineers EXTERNAL
+rectangle "Discord\nChannel" as discord EXTERNAL
+
+' Cloud Scheduler
+cloud "Cloud Scheduler\n(every 60 min)" as scheduler CLOUD
+
+' Cloud Functions
+component "Searcher\nFunction" as searcher FUNCTION
+component "Scraper\nFunction" as scraper FUNCTION
+component "Publisher\nFunction" as publisher FUNCTION
+
+' Cloud Tasks Queues
+queue "search-queue\n10/min" as search_queue QUEUE
+queue "scrape-queue\n30/min" as scrape_queue QUEUE
+queue "publish-queue\n5/min" as publish_queue QUEUE
+
+' Storage
+database "Firestore\nCollections" as firestore STORAGE {
+  folder "activities"
+  folder "leaders"
+  folder "places"
+}
+
+' Secret Manager
+storage "Secret Manager\ndiscord-bot-token" as secrets STORAGE
+
+' Flow
+scheduler --> searcher : trigger
+searcher --> mountaineers : GET search results
+searcher --> search_queue : enqueue next page
+search_queue --> searcher
+
+searcher --> scrape_queue : enqueue detail URLs
+scrape_queue --> scraper : process
+scraper --> mountaineers : GET activity detail
+scraper --> firestore : store activity,\nleader, place
+scraper --> publish_queue : enqueue activity ID
+
+publish_queue --> publisher : process
+publisher --> firestore : get activity
+publisher --> secrets : get bot token
+publisher --> discord : POST message
+publisher --> firestore : update discord_message_id
+
+@enduml
