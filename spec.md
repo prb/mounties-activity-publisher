@@ -62,7 +62,15 @@ There is a `bookkeeping` collection in the persistent cache where functions shou
 All project code will be written in modern, idiomatic Python3 with doctests where appropriate and `pytest` tests for general purpose testing.  Logging should use the Cloud Functions logging SDK.  We will use `uv` to manage project dependencies.
 
 @todo add logging levels and expectations.
-@todo true-up the architecture and free-tier Firebase expectations, e.g., Secrets and Cloud Tasks aren't available as part of the Firebase free tier but do have their own free usage thresholds.
+
+**Free Tier Usage**: This project is designed to fit within free tier limits across Google Cloud Platform services. Note that while Firebase offers a free "Spark" tier for Cloud Functions and Firestore, some GCP services used by this project (Secret Manager, Cloud Tasks, Cloud Scheduler) are separate GCP products with their own free usage allowances:
+- **Cloud Functions (2nd gen)**: 2M invocations/month, 400K GB-seconds, 200K GHz-seconds ([pricing](https://cloud.google.com/functions/pricing))
+- **Firestore**: 1 GiB storage, 50K reads/day, 20K writes/day, 20K deletes/day ([pricing](https://cloud.google.com/firestore/pricing))
+- **Secret Manager**: 6 active secret versions free, $0.06/version/month thereafter ([pricing](https://cloud.google.com/secret-manager/pricing))
+- **Cloud Tasks**: 1M tasks/month free ([pricing](https://cloud.google.com/tasks/pricing))
+- **Cloud Scheduler**: 3 jobs free ([pricing](https://cloud.google.com/scheduler/pricing))
+
+The expected monthly usage (~22K function invocations, ~420 activities, 2 scheduler jobs, ~20K tasks) fits comfortably within these limits.
 
 ### Security
 
@@ -131,12 +139,11 @@ All functions should respond gracefull to `429` response codes and log an inform
 - Scrape queue: 30rpm, concurrency five, three retries, 10s initial backoff, doubling up to 120s
 - Publish queue: 5rpm, concurrency one, three retries, 2s initial backoff, doubling up to 60s
 
-The publish queue configuration is intended to align with Discord API usage expectations.
-@todo add link to Discord API usage expectations.
+The publish queue configuration is intended to align with Discord API usage expectations. See [Discord API Rate Limits](https://discord.com/developers/docs/topics/rate-limits) for details on Discord's rate limiting behavior.
 
 ## Persistent Cache Architecture
 
-@todo Document field semantics around `null`/`None` and not inserting those fields.  (Implementation already supports this.)
+**Field Storage Semantics**: When storing documents in Firestore, fields with `None`/`null` values are **omitted entirely** from the document rather than being stored as null. This reduces storage size and makes queries more efficient. For example, if an activity doesn't have an `activity_type` or `discord_message_id`, those fields will not exist in the Firestore document. This is implemented in all create/update operations via dictionary comprehension: `{k: v for k, v in data.items() if v is not None}`. When reading documents, missing fields are treated as `None` in the Python models.
 
 ### Activities Collection
 The persistent cache will contain an `activities` collection.  Each `activity` document in the collection will have the following fields:
@@ -152,8 +159,6 @@ The persistent cache will contain an `activities` collection.  Each `activity` d
 - `branch` (text string): The sponsoring branch for the activity.
 - `leader_ref` (reference): A reference to a document in the `leaders` collection.
 - `discord_message_id` (text string): The ID of the Discord message associated with the activity, once published.
-
-@todo Add `activity_type` to the data model and consider a backfill one-time operation.
 
 The document ID should be final path segment of the `activity_permalink`, e.g.,
 
@@ -224,9 +229,8 @@ Among other things:
 - The system should provide a `User Agent` header with the value `mounties-activities-discord-publisher/<version>` where `<version>` is the version of the publisher running in the form of the Git SHA (`git rev-parse --short HEAD`)from which it was built and deployed.
 - The system should send a JSON request provide a `Content-Type` header with the value `application/json`.
 
-The `content` of the request should be based on the `activity`, `leader`, and `place` data, as follows:
+The `content` of the request should be based on the `activity`, `leader`, and `place` data, using the following multi-line format:
 
-@todo Update the code for the prettier output.
 ```
 📆 {{activity.activity_date in YYYY-MM-DD format in Pacific timezone}} {{emoji for activity.activity_type}} [{{activity.title}}]({{activity.activity_permalink}})
 Leader: [{{activity.leader.name}}](<{{activity.leader.leader_permalink}}>) at [{{activity.place.name}}](<{{activity.place.place_permalink}}>)
