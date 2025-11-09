@@ -3,13 +3,15 @@
 ═══════════════════════════════════════════════════════════════════════════════
 
 ┌─────────────────────────────────────────────────────────────────────────────┐
-│                         TRIGGER (Every 60 minutes)                          │
+│                              TRIGGERS                                       │
 │                                                                             │
-│                         ┌──────────────────┐                               │
-│                         │ Cloud Scheduler  │                               │
-│                         └────────┬─────────┘                               │
-│                                  │ HTTP POST                               │
-│                                  ▼                                          │
+│  ┌──────────────────┐                     ┌──────────────────┐            │
+│  │ Cloud Scheduler  │                     │ Cloud Scheduler  │            │
+│  │   (hourly :00)   │                     │   (hourly :30)   │            │
+│  └────────┬─────────┘                     └────────┬─────────┘            │
+│           │ HTTP POST                              │ HTTP POST             │
+│           │ (OIDC auth)                            │ (OIDC auth)           │
+│           ▼                                        ▼                        │
 └─────────────────────────────────────────────────────────────────────────────┘
 
 ┌─────────────────────────────────────────────────────────────────────────────┐
@@ -20,6 +22,15 @@
 │  │     Website      │  GET     │    Function     │                        │
 │  │ (Search Results) │          └────────┬────────┘                        │
 │  └──────────────────┘                   │                                  │
+│                                          │ update status                    │
+│                            ┌─────────────▼──────────────┐                  │
+│                            │       Firestore            │                  │
+│                            │  ┌──────────────────────┐  │                  │
+│                            │  │ bookkeeping          │  │                  │
+│                            │  │   - search_status    │  │                  │
+│                            │  │   - last_success     │  │                  │
+│                            │  └──────────────────────┘  │                  │
+│                            └─────────────────────────────┘                  │
 │                                          │                                  │
 │                                          │ enqueue tasks                    │
 │                                          ▼                                  │
@@ -46,6 +57,7 @@
 │                            │  │ activities           │  │                  │
 │                            │  │   - title            │  │                  │
 │                            │  │   - date             │  │                  │
+│                            │  │   - activity_type    │  │                  │
 │                            │  │   - leader_ref       │  │                  │
 │                            │  │   - place_ref        │  │                  │
 │                            │  │   - discord_msg_id   │  │                  │
@@ -55,6 +67,11 @@
 │                            │  └──────────────────────┘  │                  │
 │                            │  ┌──────────────────────┐  │                  │
 │                            │  │ places               │  │                  │
+│                            │  └──────────────────────┘  │                  │
+│                            │  ┌──────────────────────┐  │                  │
+│                            │  │ bookkeeping          │  │                  │
+│                            │  │   - scrape_status    │  │                  │
+│                            │  │   - last_success     │  │                  │
 │                            │  └──────────────────────┘  │                  │
 │                            └─────────────────────────────┘                  │
 │                                          │                                  │
@@ -83,31 +100,77 @@
 │          │  activities  │ │  Manager   │ │   Channel   │                 │
 │          └──────────────┘ └────────────┘ └─────────────┘                 │
 │                    │                                                        │
-│                    │ update discord_message_id                             │
+│                    │ update discord_message_id & bookkeeping               │
 │                    ▼                                                        │
 │          ┌──────────────┐                                                  │
 │          │  Firestore   │                                                  │
 │          └──────────────┘                                                  │
 └─────────────────────────────────────────────────────────────────────────────┘
 
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                        CATCHUP PHASE                                        │
+│                                                                             │
+│                   ┌─────────────────────────┐                              │
+│                   │  Publishing Catchup     │                              │
+│                   │      Function           │                              │
+│                   └────────┬────────────────┘                              │
+│                            │                                                │
+│                            │ query unpublished activities                  │
+│                            │                                                │
+│                            ▼                                                │
+│                   ┌─────────────────┐                                      │
+│                   │   Firestore     │                                      │
+│                   │   activities    │                                      │
+│                   │ (discord_msg_id │                                      │
+│                   │    = null)      │                                      │
+│                   └─────────────────┘                                      │
+│                            │                                                │
+│                            │ enqueue activity IDs                          │
+│                            ▼                                                │
+│                   ┌─────────────────────────────┐                          │
+│                   │  publish-queue (5/min)      │                          │
+│                   └─────────────────────────────┘                          │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+═══════════════════════════════════════════════════════════════════════════════
+  SECURITY & AUTHENTICATION
+═══════════════════════════════════════════════════════════════════════════════
+
+  Cloud Scheduler → Functions:
+    • OIDC token authentication
+    • Service Account: scheduler-invoker@{project}.iam.gserviceaccount.com
+    • Role: Cloud Run Invoker
+
+  Cloud Tasks → Functions:
+    • OIDC token authentication
+    • Service Account: {project}@appspot.gserviceaccount.com
+    • Role: Cloud Run Invoker
+
+  All functions:
+    • Cloud Functions Gen2 (built on Cloud Run)
+    • Deployed with --no-allow-unauthenticated
+    • Require IAM authentication for all invocations
+
 ═══════════════════════════════════════════════════════════════════════════════
   KEY METRICS
 ═══════════════════════════════════════════════════════════════════════════════
 
   Cloud Functions:
-    • searcher:  ~720 invocations/month  (512MB, 540s timeout)
-    • scraper:   ~10,000 invocations/month (512MB, 540s timeout)
-    • publisher: ~10,000 invocations/month (256MB, 540s timeout)
+    • searcher:           ~720 invocations/month   (512MB, 540s timeout)
+    • scraper:            ~10,000 invocations/month (512MB, 540s timeout)
+    • publisher:          ~10,000 invocations/month (256MB, 540s timeout)
+    • publishing-catchup: ~720 invocations/month   (256MB, 540s timeout)
 
   Cloud Tasks Queues:
     • search-queue:  10 dispatches/min, 1 concurrent, 3 retries
-    • scrape-queue:  30 dispatches/min, 5 concurrent, 5 retries
+    • scrape-queue:  30 dispatches/min, 5 concurrent, 3 retries
     • publish-queue: 5 dispatches/min, 1 concurrent, 3 retries
 
   Firestore Collections:
-    • activities: ~14 new documents per poll
-    • leaders:    ~5-10 documents (deduplicated)
-    • places:     ~5-10 documents (deduplicated)
+    • activities:   ~14 new documents per poll
+    • leaders:      ~5-10 documents (deduplicated)
+    • places:       ~5-10 documents (deduplicated)
+    • bookkeeping:  1 document (status tracking)
 
   Total Cost: $0/month (within free tier limits)
 

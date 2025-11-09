@@ -14,12 +14,14 @@ rectangle "Mountaineers\nWebsite" as mountaineers EXTERNAL
 rectangle "Discord\nChannel" as discord EXTERNAL
 
 ' Cloud Scheduler
-cloud "Cloud Scheduler\n(every 60 min)" as scheduler CLOUD
+cloud "Cloud Scheduler\n(search: hourly)" as search_scheduler CLOUD
+cloud "Cloud Scheduler\n(catchup: :30)" as catchup_scheduler CLOUD
 
 ' Cloud Functions
 component "Searcher\nFunction" as searcher FUNCTION
 component "Scraper\nFunction" as scraper FUNCTION
 component "Publisher\nFunction" as publisher FUNCTION
+component "Publishing Catchup\nFunction" as catchup FUNCTION
 
 ' Cloud Tasks Queues
 queue "search-queue\n10/min" as search_queue QUEUE
@@ -31,27 +33,35 @@ database "Firestore\nCollections" as firestore STORAGE {
   folder "activities"
   folder "leaders"
   folder "places"
+  folder "bookkeeping"
 }
 
 ' Secret Manager
 storage "Secret Manager\ndiscord-bot-token" as secrets STORAGE
 
-' Flow
-scheduler --> searcher : trigger
+' Flow - Search path
+search_scheduler --> searcher : trigger hourly
 searcher --> mountaineers : GET search results
 searcher --> search_queue : enqueue next page
+searcher --> firestore : update bookkeeping
 search_queue --> searcher
 
 searcher --> scrape_queue : enqueue detail URLs
 scrape_queue --> scraper : process
 scraper --> mountaineers : GET activity detail
-scraper --> firestore : store activity,\nleader, place
+scraper --> firestore : store activity,\nleader, place,\nbookkeeping
 scraper --> publish_queue : enqueue activity ID
 
+' Flow - Publishing path
 publish_queue --> publisher : process
 publisher --> firestore : get activity
 publisher --> secrets : get bot token
 publisher --> discord : POST message
-publisher --> firestore : update discord_message_id
+publisher --> firestore : update discord_message_id,\nbookkeeping
+
+' Flow - Catchup path
+catchup_scheduler --> catchup : trigger :30
+catchup --> firestore : query unpublished\nactivities
+catchup --> publish_queue : enqueue activity IDs
 
 @enduml
