@@ -2,16 +2,18 @@
 
 import logging
 from typing import Dict, Any
+from datetime import datetime, UTC
 
 from ..http_client import fetch_search_results
 from ..parsers import parse_search_results
 from ..tasks import enqueue_scrape_task, enqueue_search_task
+from ..db import update_search_status
 
 
 logger = logging.getLogger(__name__)
 
 
-def searcher_handler(request_json: Dict[str, Any]) -> Dict[str, Any]:
+def searcher_handler(start_index: int = 0, activity_type: str = 'Backcountry Skiing') -> Dict[str, Any]:
     """
     Handle a search task - fetch search results and enqueue scraper tasks.
 
@@ -22,9 +24,8 @@ def searcher_handler(request_json: Dict[str, Any]) -> Dict[str, Any]:
     4. If there's a next page, enqueues another search task
 
     Args:
-        request_json: Dict with:
-            - start_index: int (required) - Starting index for pagination
-            - activity_type: str (optional) - Activity type to search for
+        start_index: Starting index for pagination.
+        activity_type: Activity type to search for.
 
     Returns:
         Dict with:
@@ -34,17 +35,13 @@ def searcher_handler(request_json: Dict[str, Any]) -> Dict[str, Any]:
             - error: str (optional) - Error message if status is "error"
 
     Example:
-        >>> result = searcher_handler({'start_index': 0})
+        >>> result = searcher_handler(start_index=0)
         >>> result['status']
         'success'
         >>> result['activities_found'] > 0
         True
     """
     try:
-        # Extract parameters
-        start_index = request_json.get('start_index', 0)
-        activity_type = request_json.get('activity_type', 'Backcountry Skiing')
-
         logger.info(f"Searching for {activity_type} activities starting at index {start_index}")
 
         # Fetch search results
@@ -74,6 +71,9 @@ def searcher_handler(request_json: Dict[str, Any]) -> Dict[str, Any]:
             except Exception as e:
                 logger.error(f"Failed to enqueue next search task: {e}")
 
+        # Update bookkeeping status
+        update_search_status("Green", datetime.now(UTC))
+
         return {
             'status': 'success',
             'activities_found': len(activity_urls),
@@ -82,7 +82,15 @@ def searcher_handler(request_json: Dict[str, Any]) -> Dict[str, Any]:
 
     except Exception as e:
         logger.error(f"Error in searcher_handler: {e}", exc_info=True)
+
+        # Update bookkeeping status
+        error_message = str(e)
+        if '429' in error_message:
+            update_search_status("Yellow: Backing off.")
+        else:
+            update_search_status(f"Red: {error_message}")
+
         return {
             'status': 'error',
-            'error': str(e),
+            'error': error_message,
         }

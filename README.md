@@ -5,6 +5,8 @@ This application was "vibe-coded" by Claude Code based on the specification in [
 
 The rest of this README was authored by Claude.
 
+---
+
 ## Overview
 
 This application automatically:
@@ -13,7 +15,9 @@ This application automatically:
 3. Stores activities in Firestore
 4. Publishes new activities to a Discord channel
 
-Built with Google Cloud Functions, Cloud Tasks, and Firestore.
+Built with **Google Cloud Functions (2nd gen)**, Cloud Tasks, and Firestore.
+
+> **Note:** This project uses Cloud Functions 2nd gen, which are built on Cloud Run. This affects deployment and IAM configuration. See [spec.md](spec.md) for details.
 
 ## Architecture
 
@@ -96,6 +100,33 @@ Search Results                      Firestore                      Discord Chann
    ```bash
    ./deploy.sh
    ```
+
+## Deployment Environments
+
+For production use, it's recommended to set up separate environments (development, production).
+
+See **[ENVIRONMENTS.md](ENVIRONMENTS.md)** for a complete guide on:
+- Setting up dev and prod environments
+- Using separate GCP projects for isolation
+- Environment-specific configuration
+- Testing workflow best practices
+
+Quick example:
+```bash
+# Deploy to production
+export DEPLOY_ENV=prod
+export GCP_PROJECT=myproject-prod
+export DISCORD_CHANNEL_ID=prod-channel-id
+./deploy.sh
+```
+
+## Operations
+
+See **[OPERATIONS.md](OPERATIONS.md)** for operational tasks including:
+- Manual function invocation
+- Monitoring and debugging
+- Troubleshooting common issues
+- Cloud Scheduler management
 
 ## Testing
 

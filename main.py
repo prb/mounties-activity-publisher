@@ -9,7 +9,7 @@ import functions_framework
 from flask import Request
 
 from src.db import initialize_firebase
-from src.functions import searcher_handler, scraper_handler, publisher_handler
+from src.functions import searcher_handler, scraper_handler, publisher_handler, publishing_catchup_handler
 
 
 # Configure logging
@@ -50,7 +50,10 @@ def searcher(request: Request):
     request_json = request.get_json(silent=True) or {}
     logger.info(f"Request payload: {request_json}")
 
-    result = searcher_handler(request_json)
+    # Extract parameters and call handler
+    start_index = request_json.get('start_index', 0)
+    activity_type = request_json.get('activity_type', 'Backcountry Skiing')
+    result = searcher_handler(start_index=start_index, activity_type=activity_type)
 
     logger.info(f"Searcher result: {result}")
     logger.info("=== Searcher function completed ===")
@@ -79,7 +82,9 @@ def scraper(request: Request):
     request_json = request.get_json(silent=True) or {}
     logger.info(f"Request payload: {request_json}")
 
-    result = scraper_handler(request_json)
+    # Extract parameter and call handler
+    activity_url = request_json.get('activity_url')
+    result = scraper_handler(activity_url=activity_url)
 
     logger.info(f"Scraper result: {result}")
     logger.info("=== Scraper function completed ===")
@@ -108,8 +113,35 @@ def publisher(request: Request):
     request_json = request.get_json(silent=True) or {}
     logger.info(f"Request payload: {request_json}")
 
-    result = publisher_handler(request_json)
+    # Extract parameter and call handler
+    activity_id = request_json.get('activity_id')
+    result = publisher_handler(activity_id=activity_id)
 
     logger.info(f"Publisher result: {result}")
     logger.info("=== Publisher function completed ===")
+    return result
+
+
+@functions_framework.http
+def publishing_catchup(request: Request):
+    """
+    Publishing Catchup Cloud Function - retries failed/missed publications.
+
+    Triggered by: Cloud Scheduler (periodic cleanup)
+
+    Expected JSON payload: {} (no parameters required)
+
+    Returns:
+    {
+        "status": "success",
+        "activities_found": 5,
+        "tasks_enqueued": 5
+    }
+    """
+    logger.info("=== Publishing Catchup function invoked ===")
+    # No parameters needed, just call the handler
+    result = publishing_catchup_handler()
+
+    logger.info(f"Publishing Catchup result: {result}")
+    logger.info("=== Publishing Catchup function completed ===")
     return result

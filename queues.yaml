@@ -9,7 +9,7 @@ queue:
     retry_config:
       max_attempts: 3
       min_backoff: 10s
-      max_backoff: 300s
+      max_backoff: 60s
       max_doublings: 3
 
   - name: scrape-queue
@@ -17,10 +17,10 @@ queue:
       max_dispatches_per_second: 0.5  # ~30 requests per minute
       max_concurrent_dispatches: 5
     retry_config:
-      max_attempts: 5
-      min_backoff: 5s
+      max_attempts: 3
+      min_backoff: 10s
       max_backoff: 120s
-      max_doublings: 4
+      max_doublings: 3
 
   - name: publish-queue
     rate_limits:

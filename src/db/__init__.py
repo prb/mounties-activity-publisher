@@ -9,6 +9,13 @@ from .activities import (
     update_activity,
     activity_exists,
     update_discord_message_id,
+    get_unpublished_activity_ids,
+)
+from .bookkeeping import (
+    update_search_status,
+    update_scrape_status,
+    update_publish_status,
+    get_bookkeeping_status,
 )
 
 __all__ = [
@@ -29,4 +36,10 @@ __all__ = [
     'update_activity',
     'activity_exists',
     'update_discord_message_id',
+    'get_unpublished_activity_ids',
+    # Bookkeeping
+    'update_search_status',
+    'update_scrape_status',
+    'update_publish_status',
+    'get_bookkeeping_status',
 ]

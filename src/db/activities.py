@@ -55,6 +55,8 @@ def create_activity(activity: Activity) -> DocumentReference:
         'activity_date': activity.activity_date,
         'leader_ref': leader_ref,
         'place_ref': place_ref,
+        'activity_type': activity.activity_type,
+        'branch': activity.branch,
         'discord_message_id': activity.discord_message_id,
     }
     # Remove keys with None values
@@ -104,6 +106,8 @@ def update_activity(activity: Activity) -> DocumentReference:
         'activity_date': activity.activity_date,
         'leader_ref': leader_ref,
         'place_ref': place_ref,
+        'activity_type': activity.activity_type,
+        'branch': activity.branch,
         'discord_message_id': activity.discord_message_id,
     }
     # Remove keys with None values
@@ -157,6 +161,8 @@ def get_activity(document_id: str) -> Optional[Activity]:
         activity_date=data['activity_date'],
         leader=leader,
         place=place,
+        activity_type=data.get('activity_type'),
+        branch=data.get('branch'),
         discord_message_id=data.get('discord_message_id'),
     )
 
@@ -201,3 +207,25 @@ def update_discord_message_id(document_id: str, message_id: str) -> None:
         raise ValueError(f"Activity {document_id} does not exist")
 
     doc_ref.update({'discord_message_id': message_id})
+
+
+def get_unpublished_activity_ids() -> list[str]:
+    """
+    Get document IDs of all activities that haven't been published to Discord yet.
+
+    Returns:
+        List of activity document IDs that don't have a discord_message_id
+
+    Example:
+        >>> activity_ids = get_unpublished_activity_ids()
+        >>> len(activity_ids)
+        3
+    """
+    db = get_firestore_client()
+
+    # Query for activities where discord_message_id field doesn't exist or is null
+    query = db.collection(COLLECTION_NAME).where(filter=('discord_message_id', '==', None))
+
+    docs = query.stream()
+
+    return [doc.id for doc in docs]

@@ -41,7 +41,7 @@ def test_searcher_handler_success(mocker, search_response_html):
     mock_enqueue_search = mocker.patch('src.functions.searcher.enqueue_search_task')
 
     # Call handler
-    result = searcher_handler({'start_index': 0})
+    result = searcher_handler(start_index=0)
 
     # Verify result
     assert result['status'] == 'success'
@@ -69,7 +69,7 @@ def test_searcher_handler_with_next_page(mocker, search_response_with_next_html)
     mock_enqueue_search = mocker.patch('src.functions.searcher.enqueue_search_task')
 
     # Call handler
-    result = searcher_handler({'start_index': 0})
+    result = searcher_handler(start_index=0)
 
     # Verify result
     assert result['status'] == 'success'
@@ -94,10 +94,7 @@ def test_searcher_handler_custom_activity_type(mocker, search_response_html):
     mocker.patch('src.functions.searcher.enqueue_search_task')
 
     # Call handler with custom activity type
-    result = searcher_handler({
-        'start_index': 0,
-        'activity_type': 'Rock Climbing'
-    })
+    result = searcher_handler(start_index=0, activity_type='Rock Climbing')
 
     # Verify fetch was called with custom activity type
     mock_fetch.assert_called_once_with(start_index=0, activity_type='Rock Climbing')
@@ -112,7 +109,7 @@ def test_searcher_handler_http_error(mocker):
     mock_fetch.side_effect = Exception('Network error')
 
     # Call handler
-    result = searcher_handler({'start_index': 0})
+    result = searcher_handler(start_index=0)
 
     # Verify error response
     assert result['status'] == 'error'
@@ -146,7 +143,7 @@ def test_searcher_handler_continues_on_enqueue_failure(mocker, search_response_h
     ]
 
     # Call handler
-    result = searcher_handler({'start_index': 0})
+    result = searcher_handler(start_index=0)
 
     # Should still return success
     assert result['status'] == 'success'
@@ -185,7 +182,7 @@ def test_scraper_handler_success(mocker, activity_detail_html):
 
     # Call handler
     activity_url = 'https://www.mountaineers.org/activities/activities/backcountry-ski-snowboard-snoqualmie-summit-west-2-2026-02-10'
-    result = scraper_handler({'activity_url': activity_url})
+    result = scraper_handler(activity_url=activity_url)
 
     # Verify result
     assert result['status'] == 'success'
@@ -212,7 +209,7 @@ def test_scraper_handler_skips_existing_activity(mocker):
 
     # Call handler
     activity_url = 'https://www.mountaineers.org/activities/activities/some-existing-activity'
-    result = scraper_handler({'activity_url': activity_url})
+    result = scraper_handler(activity_url=activity_url)
 
     # Verify result
     assert result['status'] == 'skipped'
@@ -226,7 +223,7 @@ def test_scraper_handler_skips_existing_activity(mocker):
 
 def test_scraper_handler_missing_url(mocker):
     """Test that scraper returns error if activity_url is missing."""
-    result = scraper_handler({})
+    result = scraper_handler()
 
     assert result['status'] == 'error'
     assert 'Missing required parameter' in result['error']
@@ -243,9 +240,9 @@ def test_scraper_handler_http_error(mocker):
     mock_fetch.side_effect = Exception('Network error')
 
     # Call handler
-    result = scraper_handler({
-        'activity_url': 'https://www.mountaineers.org/activities/activities/some-activity'
-    })
+    result = scraper_handler(
+        activity_url='https://www.mountaineers.org/activities/activities/some-activity'
+    )
 
     # Verify error response
     assert result['status'] == 'error'
@@ -283,7 +280,7 @@ def test_scraper_handler_continues_on_publish_enqueue_failure(mocker, activity_d
 
     # Call handler
     activity_url = 'https://www.mountaineers.org/activities/activities/backcountry-ski-snowboard-snoqualmie-summit-west-2-2026-02-10'
-    result = scraper_handler({'activity_url': activity_url})
+    result = scraper_handler(activity_url=activity_url)
 
     # Should still return success (activity was created)
     assert result['status'] == 'success'

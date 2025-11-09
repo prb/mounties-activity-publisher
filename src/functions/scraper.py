@@ -2,6 +2,7 @@
 
 import logging
 from typing import Dict, Any
+from datetime import datetime, UTC
 
 from ..http_client import fetch_page
 from ..parsers import parse_activity_detail
@@ -10,6 +11,7 @@ from ..db import (
     create_activity,
     create_or_update_leader,
     create_or_update_place,
+    update_scrape_status,
 )
 from ..tasks import enqueue_publish_task
 
@@ -17,7 +19,7 @@ from ..tasks import enqueue_publish_task
 logger = logging.getLogger(__name__)
 
 
-def scraper_handler(request_json: Dict[str, Any]) -> Dict[str, Any]:
+def scraper_handler(activity_url: str = None) -> Dict[str, Any]:
     """
     Handle a scrape task - fetch activity detail page and store in Firestore.
 
@@ -31,8 +33,7 @@ def scraper_handler(request_json: Dict[str, Any]) -> Dict[str, Any]:
     7. Enqueues a publish task to send to Discord
 
     Args:
-        request_json: Dict with:
-            - activity_url: str (required) - URL of activity detail page
+        activity_url: URL of activity detail page.
 
     Returns:
         Dict with:
@@ -42,15 +43,13 @@ def scraper_handler(request_json: Dict[str, Any]) -> Dict[str, Any]:
             - error: str (optional) - Error message if status is "error"
 
     Example:
-        >>> result = scraper_handler({
-        ...     'activity_url': 'https://www.mountaineers.org/activities/activities/some-activity'
-        ... })
+        >>> result = scraper_handler(
+        ...     activity_url='https://www.mountaineers.org/activities/activities/some-activity'
+        ... )
         >>> result['status'] in ['success', 'skipped', 'error']
         True
     """
     try:
-        # Extract parameters
-        activity_url = request_json.get('activity_url')
         if not activity_url:
             return {
                 'status': 'error',
@@ -65,6 +64,8 @@ def scraper_handler(request_json: Dict[str, Any]) -> Dict[str, Any]:
         # Check if activity already exists
         if activity_exists(activity_id):
             logger.info(f"Activity {activity_id} already exists, skipping")
+            # Still consider this a success for bookkeeping purposes
+            update_scrape_status("Green", datetime.now(UTC))
             return {
                 'status': 'skipped',
                 'activity_id': activity_id,
@@ -100,6 +101,9 @@ def scraper_handler(request_json: Dict[str, Any]) -> Dict[str, Any]:
             # Don't fail the scraper if publish enqueueing fails
             # The activity is already in Firestore
 
+        # Update bookkeeping status
+        update_scrape_status("Green", datetime.now(UTC))
+
         return {
             'status': 'success',
             'activity_id': activity_ref.id,
@@ -107,7 +111,15 @@ def scraper_handler(request_json: Dict[str, Any]) -> Dict[str, Any]:
 
     except Exception as e:
         logger.error(f"Error in scraper_handler: {e}", exc_info=True)
+
+        # Update bookkeeping status
+        error_message = str(e)
+        if '429' in error_message:
+            update_scrape_status("Yellow: Backing off.")
+        else:
+            update_scrape_status(f"Red: {error_message}")
+
         return {
             'status': 'error',
-            'error': str(e),
+            'error': error_message,
         }

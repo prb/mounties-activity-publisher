@@ -52,17 +52,20 @@ def test_format_activity_message(sample_activity):
     """Test formatting an activity message for Discord."""
     message = format_activity_message(sample_activity)
 
-    # Check date is in Pacific timezone
-    assert message.startswith('2026-02-10 ')  # Feb 10 midnight in Pacific
+    # Check multi-line format with calendar emoji
+    assert message.startswith('📆 2026-02-10')  # Feb 10 midnight in Pacific with calendar emoji
 
     # Check title with link (no preview)
     assert '[Backcountry Ski/Snowboard - Snoqualmie Summit West](https://www.mountaineers.org/activities/activities/backcountry-ski-snowboard-snoqualmie-summit-west-2-2026-02-10)' in message
 
-    # Check leader with no-preview link syntax
-    assert 'led by [Randy Oakley](<https://www.mountaineers.org/members/randy-oakley>)' in message
+    # Check leader with no-preview link syntax (new format: "Leader: [name]")
+    assert 'Leader: [Randy Oakley](<https://www.mountaineers.org/members/randy-oakley>)' in message
 
     # Check place with no-preview link syntax
     assert 'at [Snoqualmie Summit Ski Areas](<https://www.mountaineers.org/activities/routes-places/ski-resorts-nordic-centers/snoqualmie-summit-ski-areas>)' in message
+
+    # Check difficulty ratings line
+    assert 'Difficulty Ratings: 🟢 M1 Intermediate Ski' in message
 
 
 def test_format_activity_message_date_conversion():
@@ -89,7 +92,8 @@ def test_format_activity_message_date_conversion():
     )
 
     message = format_activity_message(activity)
-    assert message.startswith('2026-02-10 ')
+    # Check the new multi-line format with calendar emoji
+    assert message.startswith('📆 2026-02-10')
 
 
 def test_send_discord_message_success(mocker):
@@ -197,9 +201,9 @@ def test_publisher_handler_success(mocker, sample_activity):
     mock_update = mocker.patch('src.functions.publisher.update_discord_message_id')
 
     # Call handler
-    result = publisher_handler({
-        'activity_id': 'backcountry-ski-snowboard-snoqualmie-summit-west-2-2026-02-10'
-    })
+    result = publisher_handler(
+        activity_id='backcountry-ski-snowboard-snoqualmie-summit-west-2-2026-02-10'
+    )
 
     # Verify result
     assert result['status'] == 'success'
@@ -224,9 +228,9 @@ def test_publisher_handler_already_published(mocker, sample_activity):
     mock_publish = mocker.patch('src.functions.publisher.publish_activity_to_discord')
 
     # Call handler
-    result = publisher_handler({
-        'activity_id': 'backcountry-ski-snowboard-snoqualmie-summit-west-2-2026-02-10'
-    })
+    result = publisher_handler(
+        activity_id='backcountry-ski-snowboard-snoqualmie-summit-west-2-2026-02-10'
+    )
 
     # Verify result
     assert result['status'] == 'skipped'
@@ -239,7 +243,7 @@ def test_publisher_handler_already_published(mocker, sample_activity):
 
 def test_publisher_handler_missing_activity_id(mocker):
     """Test that publisher returns error if activity_id is missing."""
-    result = publisher_handler({})
+    result = publisher_handler()
 
     assert result['status'] == 'error'
     assert 'Missing required parameter' in result['error']
@@ -252,9 +256,7 @@ def test_publisher_handler_activity_not_found(mocker):
     mock_get_activity.return_value = None
 
     # Call handler
-    result = publisher_handler({
-        'activity_id': 'nonexistent-activity'
-    })
+    result = publisher_handler(activity_id='nonexistent-activity')
 
     # Verify result
     assert result['status'] == 'error'
@@ -272,9 +274,9 @@ def test_publisher_handler_discord_error(mocker, sample_activity):
     mock_publish.side_effect = Exception('Discord API error')
 
     # Call handler
-    result = publisher_handler({
-        'activity_id': 'backcountry-ski-snowboard-snoqualmie-summit-west-2-2026-02-10'
-    })
+    result = publisher_handler(
+        activity_id='backcountry-ski-snowboard-snoqualmie-summit-west-2-2026-02-10'
+    )
 
     # Verify error response
     assert result['status'] == 'error'

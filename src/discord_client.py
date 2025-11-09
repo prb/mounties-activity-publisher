@@ -54,15 +54,106 @@ def get_channel_id() -> str:
     return DISCORD_CHANNEL_ID
 
 
+def get_activity_type_emoji(activity_type: Optional[str]) -> str:
+    """
+    Get emoji for activity type.
+
+    Args:
+        activity_type: Activity type string
+
+    Returns:
+        Emoji for the activity type
+
+    Example:
+        >>> get_activity_type_emoji("Backcountry Skiing")
+        '⛷️'
+        >>> get_activity_type_emoji("Unknown")
+        ''
+    """
+    if not activity_type:
+        return ""
+
+    emoji_map = {
+        "Backcountry Skiing": "⛷️",
+    }
+
+    return emoji_map.get(activity_type, "")
+
+
+def get_difficulty_emojis(difficulty_rating: str) -> str:
+    """
+    Get emoji(s) for a difficulty rating.
+
+    Emojis are placed before the text, with multiple emojis combined if applicable.
+
+    Args:
+        difficulty_rating: Single difficulty rating string
+
+    Returns:
+        Emoji string (may be empty, one emoji, or multiple emojis)
+
+    Example:
+        >>> get_difficulty_emojis("M3 Advanced Ski")
+        '🟥'
+        >>> get_difficulty_emojis("M2G Advanced Glacier Ski")
+        '◆🧊'
+        >>> get_difficulty_emojis("M1 Intermediate Ski")
+        '🟢'
+    """
+    emojis = []
+
+    # Check for difficulty level emojis (order matters for M1-M2 check)
+    if difficulty_rating.startswith("M1-M2"):
+        emojis.append("🟦")
+    elif difficulty_rating.startswith("M3"):
+        emojis.append("🟥")
+    elif difficulty_rating.startswith("M2"):
+        emojis.append("◆")
+    elif difficulty_rating.startswith("M1"):
+        emojis.append("🟢")
+
+    # Check for glacier emoji
+    if "Glacier" in difficulty_rating:
+        emojis.append("🧊")
+
+    return "".join(emojis)
+
+
+def format_difficulty_ratings(difficulty_ratings: list[str]) -> str:
+    """
+    Format difficulty ratings with emojis.
+
+    Args:
+        difficulty_ratings: List of difficulty rating strings
+
+    Returns:
+        Comma-separated string with emojis before each rating
+
+    Example:
+        >>> format_difficulty_ratings(["M3 Advanced Ski", "M1 Intermediate Ski"])
+        '🟥 M3 Advanced Ski, 🟢 M1 Intermediate Ski'
+        >>> format_difficulty_ratings(["M2G Advanced Glacier Ski"])
+        '◆🧊 M2G Advanced Glacier Ski'
+    """
+    formatted = []
+    for rating in difficulty_ratings:
+        emojis = get_difficulty_emojis(rating)
+        if emojis:
+            formatted.append(f"{emojis} {rating}")
+        else:
+            formatted.append(rating)
+
+    return ", ".join(formatted)
+
+
 def format_activity_message(activity: Activity) -> str:
     """
     Format an activity as a Discord message.
 
     Format:
-    {{activity.activity_date in YYYY-MM-DD format in Pacific timezone}}
-    [{{activity.title}}]({{activity.activity_permalink}})
-    led by [{{activity.leader.name}}](<{{activity.leader.leader_permalink}}>)
-    at [{{activity.place.name}}](<{{activity.place.place_permalink}}>)
+    📆 {{activity.activity_date in YYYY-MM-DD format in Pacific timezone}} {{emoji for activity.activity_type}} [{{activity.title}}]({{activity.activity_permalink}})
+    Leader: [{{activity.leader.name}}](<{{activity.leader.leader_permalink}}>) at [{{activity.place.name}}](<{{activity.place.place_permalink}}>)
+    Difficulty Ratings: {{comma-concatenated activity.difficulty_rating with optional emojis}}
 
     Note: Using [text](<url>) prevents Discord from rendering link previews.
 
@@ -88,13 +179,16 @@ def format_activity_message(activity: Activity) -> str:
         ...     activity_permalink="https://www.mountaineers.org/activities/climb",
         ...     title="Climb Mount Rainier",
         ...     description="Summit climb",
-        ...     difficulty_rating=["Intermediate"],
+        ...     difficulty_rating=["M3 Advanced"],
         ...     activity_date=datetime(2026, 7, 4, 14, 0, 0, tzinfo=pytz.UTC),
         ...     leader=leader,
-        ...     place=place
+        ...     place=place,
+        ...     activity_type="Backcountry Skiing"
         ... )
         >>> msg = format_activity_message(activity)
-        >>> '2026-07-04' in msg
+        >>> '📆 2026-07-04' in msg
+        True
+        >>> '⛷️' in msg
         True
         >>> '[Climb Mount Rainier]' in msg
         True
@@ -104,13 +198,19 @@ def format_activity_message(activity: Activity) -> str:
     pacific_date = activity.activity_date.astimezone(pacific)
     date_str = pacific_date.strftime('%Y-%m-%d')
 
-    # Format message
-    message = (
-        f"{date_str} "
-        f"[{activity.title}]({activity.activity_permalink}) "
-        f"led by [{activity.leader.name}](<{activity.leader.leader_permalink}>) "
-        f"at [{activity.place.name}](<{activity.place.place_permalink}>)"
-    )
+    # Get activity type emoji
+    activity_emoji = get_activity_type_emoji(activity.activity_type)
+    activity_emoji_str = f" {activity_emoji}" if activity_emoji else ""
+
+    # Format difficulty ratings with emojis
+    difficulty_str = format_difficulty_ratings(activity.difficulty_rating)
+
+    # Format multi-line message
+    line1 = f"📆 {date_str}{activity_emoji_str} [{activity.title}]({activity.activity_permalink})"
+    line2 = f"Leader: [{activity.leader.name}](<{activity.leader.leader_permalink}>) at [{activity.place.name}](<{activity.place.place_permalink}>)"
+    line3 = f"Difficulty Ratings: {difficulty_str}"
+
+    message = f"{line1}\n{line2}\n{line3}"
 
     return message
 

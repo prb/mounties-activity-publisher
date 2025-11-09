@@ -29,6 +29,7 @@ def parse_activity_detail(html_content: str, activity_url: str) -> Activity:
 
     # Extract basic fields
     title = extract_title(tree)
+    activity_type = extract_activity_type(tree)
     description = extract_description(tree)
     activity_date = extract_activity_date(tree)
     difficulty_rating = extract_difficulty_rating(tree)
@@ -47,6 +48,7 @@ def parse_activity_detail(html_content: str, activity_url: str) -> Activity:
         activity_date=activity_date,
         place=place,
         leader=leader,
+        activity_type=activity_type,
     )
 
 
@@ -62,6 +64,20 @@ def extract_title(tree) -> str:
 
     # Join and clean whitespace
     return ' '.join(''.join(title_nodes).split())
+
+
+def extract_activity_type(tree) -> str:
+    """
+    Extract activity type.
+
+    XPath: //li[label[contains(text(),'Activity Type')]]/text()
+    """
+    type_nodes = tree.xpath("//li[label[contains(text(),'Activity Type')]]/text()")
+    if not type_nodes:
+        return ""
+
+    # Join and clean whitespace
+    return ' '.join(''.join(type_nodes).split())
 
 
 def extract_description(tree) -> str:
@@ -122,7 +138,8 @@ def extract_difficulty_rating(tree) -> list[str]:
         full_text = full_text[len("Difficulty:"):].strip()
 
     # Split by comma and clean each item
-    ratings = [r.strip() for r in full_text.split(',') if r.strip()]
+    # Normalize whitespace: collapse sequences of whitespace to single spaces
+    ratings = [' '.join(r.split()) for r in full_text.split(',') if r.strip()]
 
     return ratings
 
