@@ -226,7 +226,7 @@ def get_unpublished_activity_ids() -> list[str]:
     db = get_firestore_client()
 
     # Query for activities where discord_message_id field doesn't exist or is null
-    query = db.collection(COLLECTION_NAME).where(filter=('discord_message_id', '==', None))
+    query = db.collection(COLLECTION_NAME).where(field_path='discord_message_id', op_string='==', value=None)
 
     docs = query.stream()
 
