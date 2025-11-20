@@ -57,3 +57,14 @@ def get_firestore_client() -> Client:
         )
 
     return _firestore_client
+
+
+def get_transaction():
+    """
+    Get a Firestore transaction object.
+
+    Returns:
+        Firestore transaction
+    """
+    client = get_firestore_client()
+    return client.transaction()

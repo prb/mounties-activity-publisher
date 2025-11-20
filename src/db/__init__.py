@@ -1,6 +1,6 @@
 """Firestore database operations."""
 
-from .firestore_client import get_firestore_client, initialize_firebase
+from .firestore_client import get_firestore_client, initialize_firebase, get_transaction
 from .leaders import create_or_update_leader, get_leader, leader_exists
 from .places import create_or_update_place, get_place, place_exists
 from .activities import (
@@ -22,6 +22,7 @@ __all__ = [
     # Client
     'get_firestore_client',
     'initialize_firebase',
+    'get_transaction',
     # Leaders
     'create_or_update_leader',
     'get_leader',

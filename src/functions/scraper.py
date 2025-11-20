@@ -88,25 +88,53 @@ def scraper_handler(activity_url: str = None) -> Dict[str, Any]:
         place_ref = create_or_update_place(activity.place)
         logger.debug(f"Created/updated place: {place_ref.id}")
 
-        # Create activity in Firestore
-        activity_ref = create_activity(activity)
-        logger.info(f"Created activity: {activity_ref.id}")
+        # Create activity in Firestore using a transaction
+        from google.cloud import firestore
+        from ..db import get_transaction
 
-        # Enqueue publish task
+        @firestore.transactional
+        def create_activity_transactional(transaction, activity_obj):
+            return create_activity(activity_obj, transaction=transaction)
+
+        transaction = get_transaction()
         try:
-            enqueue_publish_task(activity_ref.id)
-            logger.info(f"Enqueued publish task for: {activity_ref.id}")
-        except Exception as e:
-            logger.error(f"Failed to enqueue publish task: {e}")
-            # Don't fail the scraper if publish enqueueing fails
-            # The activity is already in Firestore
+            activity_ref = create_activity_transactional(transaction, activity)
+            logger.info(f"Created activity: {activity_ref.id}")
+            
+            # Enqueue publish task
+            try:
+                enqueue_publish_task(activity_ref.id)
+                logger.info(f"Enqueued publish task for: {activity_ref.id}")
+            except Exception as e:
+                logger.error(f"Failed to enqueue publish task: {e}")
+                # Don't fail the scraper if publish enqueueing fails
+                # The activity is already in Firestore
+
+            status = 'success'
+            result_activity_id = activity_ref.id
+
+        except ValueError as e:
+            # This catches the "Activity already exists" error raised by create_activity
+            if "already exists" in str(e):
+                logger.info(f"Activity {activity.document_id} already exists (race condition handled), skipping")
+                status = 'skipped'
+                result_activity_id = activity.document_id
+            else:
+                raise e
 
         # Update bookkeeping status
         update_scrape_status("Green", datetime.now(UTC))
 
+        if status == 'skipped':
+            return {
+                'status': 'skipped',
+                'activity_id': result_activity_id,
+                'reason': 'Activity already exists in Firestore',
+            }
+        
         return {
             'status': 'success',
-            'activity_id': activity_ref.id,
+            'activity_id': result_activity_id,
         }
 
     except Exception as e:
