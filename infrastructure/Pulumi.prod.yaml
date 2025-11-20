@@ -1,0 +1,4 @@
+encryptionsalt: v1:rFzGkae8OmQ=:v1:JHwSnug86Cw3PQ8o:uGI3ha+uTk4nXFRcS3ZTTcjscfeq/w==
+config:
+  gcp:project: backcountry-ski-activity-feed
+  gcp:region: us-central1
