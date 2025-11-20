@@ -60,31 +60,46 @@ Search Results                      Firestore                      Discord Chann
 
 3. **Google Cloud Project**
    - Create a project at https://console.cloud.google.com/
-   - Enable billing (free tier is sufficient)
+   - Enable billing (free tier is## Deployment
 
-### Installation
+This project uses **Pulumi** for Infrastructure as Code (IaC).
 
-1. **Clone and set up:**
-   ```bash
-   git clone <repository-url>
-   cd mounties-activities-discord-publisher
-   ```
+### Prerequisites
+1.  [Install Pulumi](https://www.pulumi.com/docs/install/)
+2.  [Install Google Cloud SDK](https://cloud.google.com/sdk/docs/install)
+3.  Authenticate with Google Cloud: `gcloud auth application-default login`
 
-2. **Set environment variables:**
-   ```bash
-   export GCP_PROJECT=your-project-id
-   export GCP_REGION=us-central1
-   export DISCORD_CHANNEL_ID=your_discord_channel_id
-   ```
+### Deploying
+1.  Navigate to the infrastructure directory:
+    ```bash
+    cd infrastructure
+    ```
+2.  Install dependencies:
+    ```bash
+    pip install -r requirements.txt
+    ```
+3.  Initialize the stack (if first time):
+    ```bash
+    pulumi stack init dev
+    ```
+4.  Set configuration (optional, defaults exist):
+    ```bash
+    export GCP_PROJECT=your-project-id
+    export GCP_REGION=us-central1
+    export DISCORD_CHANNEL_ID=your-channel-id
+    # Ensure DISCORD_BOT_TOKEN_SECRET is set in Secret Manager
+    ```
+5.  Preview changes:
+    ```bash
+    pulumi preview
+    ```
+6.  Deploy:
+    ```bash
+    pulumi up
+    ```
 
-3. **Enable Google Cloud APIs:**
-   ```bash
-   gcloud services enable cloudfunctions.googleapis.com
-   gcloud services enable cloudtasks.googleapis.com
-   gcloud services enable firestore.googleapis.com
-   gcloud services enable cloudscheduler.googleapis.com
-   gcloud services enable secretmanager.googleapis.com
-   ```
+### Legacy Deployment
+The `deploy.sh` script is deprecated but kept for reference. It uses imperative gcloud commands.
 
 4. **Create Firestore database:**
    ```bash
