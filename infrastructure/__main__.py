@@ -7,7 +7,7 @@ config = pulumi.Config()
 project = gcp.config.project
 region = gcp.config.region or "us-central1"
 deploy_env = os.environ.get("DEPLOY_ENV", "prod")
-discord_channel_id = os.environ.get("DISCORD_CHANNEL_ID", "your-channel-id")
+discord_channel_id = config.get("discord_channel_id") or os.environ.get("DISCORD_CHANNEL_ID", "your-channel-id")
 discord_bot_token_secret = os.environ.get("DISCORD_BOT_TOKEN_SECRET", "discord-bot-token")
 
 # 1. Enable APIs (Optional - usually better to manage at org level, but including for parity)
