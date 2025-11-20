@@ -86,12 +86,9 @@ for q in queues:
         ))
 
 # 5. Secrets
-# Manage the Discord Bot Token secret
-bot_token_secret = gcp.secretmanager.Secret("discord-bot-token",
-    secret_id="discord-bot-token",
-    replication=gcp.secretmanager.SecretReplicationArgs(
-        auto=gcp.secretmanager.SecretReplicationAutoArgs(),
-    ))
+# Manage the Discord Bot Token secret version
+# The secret container "discord-bot-token" already exists (managed manually or by legacy scripts)
+bot_token_secret = gcp.secretmanager.get_secret(secret_id="discord-bot-token")
 
 bot_token_secret_version = gcp.secretmanager.SecretVersion("discord-bot-token-version",
     secret=bot_token_secret.id,
