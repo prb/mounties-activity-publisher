@@ -4,6 +4,10 @@ This guide covers operational tasks for the Mountaineers Activities Discord Publ
 
 > **Note:** This project uses Cloud Functions 2nd gen, which are built on Cloud Run. Function invocation requires proper IAM permissions and OIDC tokens.
 
+## Related Documents
+- [Architecture Specification](spec.md)
+- [Cost & Billing Expectations](COST.md)
+
 ## Deployment
 
 This project uses **Pulumi** for infrastructure management.

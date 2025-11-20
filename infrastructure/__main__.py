@@ -28,12 +28,50 @@ apis = [
     "run.googleapis.com",
     "artifactregistry.googleapis.com",
     "cloudscheduler.googleapis.com",
+    "monitoring.googleapis.com",
 ]
 
 for api in apis:
     gcp.projects.Service(f"enable-{api}",
         service=api,
         disable_on_destroy=False)
+
+# ... (rest of the file content is preserved by not selecting it for replacement) ...
+
+# 8. Monitoring and Alerting
+
+# Create an Email Notification Channel
+email_channel = gcp.monitoring.NotificationChannel("email-alert-channel",
+    display_name="Email Alerts",
+    type="email",
+    labels={
+        "email_address": "skioutings-errors@mult.ifario.us"
+    },
+    description="Email channel for application errors",
+    enabled=True,
+    project=project
+)
+
+# Create an Alert Policy for Error Logs
+error_log_policy = gcp.monitoring.AlertPolicy("error-log-policy",
+    display_name="Application Error Logs",
+    combiner="OR",
+    conditions=[
+        gcp.monitoring.AlertPolicyConditionArgs(
+            display_name="Error Log Condition",
+            condition_matched_log=gcp.monitoring.AlertPolicyConditionConditionMatchedLogArgs(
+                filter=f'resource.type="cloud_run_revision" AND severity>="ERROR"',
+            ),
+        )
+    ],
+    notification_channels=[email_channel.name],
+    alert_strategy=gcp.monitoring.AlertPolicyAlertStrategyArgs(
+        notification_rate_limit=gcp.monitoring.AlertPolicyAlertStrategyNotificationRateLimitArgs(
+            period="300s"  # Limit notifications to once every 5 minutes
+        )
+    ),
+    project=project
+)
 
 # 2. Firestore Database
 # Note: App Engine apps (and thus Firestore) are often created manually or once per project.
