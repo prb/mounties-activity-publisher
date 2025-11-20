@@ -12,7 +12,7 @@ from .places import get_place
 COLLECTION_NAME = 'activities'
 
 
-def create_activity(activity: Activity) -> DocumentReference:
+def create_activity(activity: Activity, transaction=None) -> DocumentReference:
     """
     Create an activity document in Firestore.
 
@@ -20,31 +20,30 @@ def create_activity(activity: Activity) -> DocumentReference:
 
     Args:
         activity: Activity object to store
+        transaction: Optional Firestore transaction to use
 
     Returns:
         DocumentReference for the created activity
 
     Raises:
         ValueError: If activity already exists
-
-    Example:
-        >>> activity = Activity(...)
-        >>> ref = create_activity(activity)
-        >>> ref.id
-        'backcountry-ski-snoqualmie-2026-02-10'
     """
     db = get_firestore_client()
     doc_id = activity.document_id
+    doc_ref = db.collection(COLLECTION_NAME).document(doc_id)
 
     # Check if already exists
-    if activity_exists(doc_id):
-        raise ValueError(f"Activity {doc_id} already exists")
+    if transaction:
+        snapshot = doc_ref.get(transaction=transaction)
+        if snapshot.exists:
+            raise ValueError(f"Activity {doc_id} already exists")
+    else:
+        if doc_ref.get().exists:
+            raise ValueError(f"Activity {doc_id} already exists")
 
     # Create references to leader and place
     leader_ref = db.collection('leaders').document(activity.leader.document_id)
     place_ref = db.collection('places').document(activity.place.document_id)
-
-    doc_ref = db.collection(COLLECTION_NAME).document(doc_id)
 
     # Build data dict and omit None values
     data = {
@@ -62,7 +61,10 @@ def create_activity(activity: Activity) -> DocumentReference:
     # Remove keys with None values
     data = {k: v for k, v in data.items() if v is not None}
 
-    doc_ref.set(data)
+    if transaction:
+        transaction.set(doc_ref, data)
+    else:
+        doc_ref.set(data)
 
     return doc_ref
 
