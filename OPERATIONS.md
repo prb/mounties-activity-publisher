@@ -13,6 +13,11 @@ This project uses **Pulumi** for infrastructure management.
 - [Google Cloud SDK](https://cloud.google.com/sdk/docs/install)
 - Python 3.11+
 
+### Required Secrets
+Before deploying, ensure the following files exist in the project root:
+- `DISCORD_CHANNEL_ID.secret`: Contains the Discord Channel ID.
+- `DISCORD_BOT_TOKEN.secret`: Contains the Discord Bot Token.
+
 ### Deploying Changes
 1. Navigate to the infrastructure directory:
    ```bash

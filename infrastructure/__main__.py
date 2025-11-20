@@ -7,8 +7,16 @@ config = pulumi.Config()
 project = gcp.config.project
 region = gcp.config.region or "us-central1"
 deploy_env = os.environ.get("DEPLOY_ENV", "prod")
-discord_channel_id = config.get("discord_channel_id") or os.environ.get("DISCORD_CHANNEL_ID", "your-channel-id")
-discord_bot_token_secret = os.environ.get("DISCORD_BOT_TOKEN_SECRET", "discord-bot-token")
+# Load secrets from files
+def read_secret_file(filename):
+    try:
+        with open(os.path.join("..", filename), "r") as f:
+            return f.read().strip()
+    except FileNotFoundError:
+        raise ValueError(f"Required secret file '{filename}' not found in project root.")
+
+discord_channel_id = read_secret_file("DISCORD_CHANNEL_ID.secret")
+discord_bot_token = read_secret_file("DISCORD_BOT_TOKEN.secret")
 
 # 1. Enable APIs (Optional - usually better to manage at org level, but including for parity)
 apis = [
@@ -77,7 +85,19 @@ for q in queues:
             max_doublings=q["retry_config"]["max_doublings"],
         ))
 
-# 5. Cloud Functions (Gen 2)
+# 5. Secrets
+# Manage the Discord Bot Token secret
+bot_token_secret = gcp.secretmanager.Secret("discord-bot-token",
+    secret_id="discord-bot-token",
+    replication=gcp.secretmanager.SecretReplicationArgs(
+        auto=gcp.secretmanager.SecretReplicationAutoArgs(),
+    ))
+
+bot_token_secret_version = gcp.secretmanager.SecretVersion("discord-bot-token-version",
+    secret=bot_token_secret.id,
+    secret_data=discord_bot_token)
+
+# 6. Cloud Functions (Gen 2)
 
 # Archive the source code
 # We exclude infrastructure folder, .git, etc.
@@ -195,7 +215,7 @@ publisher = gcp.cloudfunctionsv2.Function("publisher",
             gcp.cloudfunctionsv2.FunctionServiceConfigSecretEnvironmentVariableArgs(
                 key="DISCORD_BOT_TOKEN",
                 project_id=project,
-                secret=discord_bot_token_secret,
+                secret=bot_token_secret.secret_id,
                 version="latest"
             )
         ]
@@ -228,7 +248,7 @@ publishing_catchup = gcp.cloudfunctionsv2.Function("publishing-catchup",
     )
 )
 
-# 6. IAM Bindings
+# 7. IAM Bindings
 
 # Grant Cloud Run Invoker to Scheduler SA for each function
 functions = [searcher, scraper, publisher, publishing_catchup]
@@ -257,7 +277,7 @@ project_data = gcp.organizations.get_project(project_id=project)
 compute_sa = f"{project_data.number}-compute@developer.gserviceaccount.com"
 
 gcp.secretmanager.SecretIamMember("secret-accessor",
-    secret_id=discord_bot_token_secret,
+    secret_id=bot_token_secret.id,
     role="roles/secretmanager.secretAccessor",
     member=f"serviceAccount:{compute_sa}")
 
