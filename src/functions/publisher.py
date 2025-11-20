@@ -2,9 +2,9 @@
 
 import logging
 from typing import Dict, Any
-from datetime import datetime, UTC
+from datetime import datetime, timezone
 
-from ..db import get_activity, update_discord_message_id, update_publish_status
+from ..db import get_activity, update_discord_message_id
 from ..discord_client import publish_activity_to_discord
 
 
@@ -59,7 +59,6 @@ def publisher_handler(activity_id: str = None) -> Dict[str, Any]:
         if activity.discord_message_id:
             logger.info(f"Activity {activity_id} already published to Discord (message ID: {activity.discord_message_id}), skipping")
             # Update status but NOT last_publish_success (per spec: only update when actually publishing)
-            update_publish_status("Green")
             return {
                 'status': 'skipped',
                 'message_id': activity.discord_message_id,
@@ -74,8 +73,7 @@ def publisher_handler(activity_id: str = None) -> Dict[str, Any]:
         update_discord_message_id(activity_id, message_id)
         logger.info(f"Updated activity {activity_id} with discord_message_id: {message_id}")
 
-        # Update bookkeeping status with success timestamp (actual publish occurred)
-        update_publish_status("Green", datetime.now(UTC))
+        logger.info(f"Updated activity {activity_id} with discord_message_id: {message_id}")
 
         return {
             'status': 'success',
@@ -87,10 +85,6 @@ def publisher_handler(activity_id: str = None) -> Dict[str, Any]:
 
         # Update bookkeeping status
         error_message = str(e)
-        if '429' in error_message:
-            update_publish_status("Yellow: Backing off.")
-        else:
-            update_publish_status(f"Red: {error_message}")
 
         return {
             'status': 'error',

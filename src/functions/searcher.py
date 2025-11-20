@@ -2,12 +2,12 @@
 
 import logging
 from typing import Dict, Any
-from datetime import datetime, UTC
+from datetime import datetime, timezone
 
 from ..http_client import fetch_search_results
 from ..parsers import parse_search_results
 from ..tasks import enqueue_scrape_task, enqueue_search_task
-from ..db import update_search_status
+from ..tasks import enqueue_scrape_task, enqueue_search_task
 
 
 logger = logging.getLogger(__name__)
@@ -71,8 +71,7 @@ def searcher_handler(start_index: int = 0, activity_type: str = 'Backcountry Ski
             except Exception as e:
                 logger.error(f"Failed to enqueue next search task: {e}")
 
-        # Update bookkeeping status
-        update_search_status("Green", datetime.now(UTC))
+
 
         return {
             'status': 'success',
@@ -85,10 +84,6 @@ def searcher_handler(start_index: int = 0, activity_type: str = 'Backcountry Ski
 
         # Update bookkeeping status
         error_message = str(e)
-        if '429' in error_message:
-            update_search_status("Yellow: Backing off.")
-        else:
-            update_search_status(f"Red: {error_message}")
 
         return {
             'status': 'error',

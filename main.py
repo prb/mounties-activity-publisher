@@ -13,10 +13,18 @@ from src.functions import searcher_handler, scraper_handler, publisher_handler, 
 
 
 # Configure logging
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
-)
+# Configure logging
+import google.cloud.logging
+try:
+    client = google.cloud.logging.Client()
+    client.setup_logging()
+except Exception:
+    # Fallback for local development or if credentials missing
+    logging.basicConfig(
+        level=logging.INFO,
+        format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+    )
+
 logger = logging.getLogger(__name__)
 
 # Initialize Firebase once at module load time

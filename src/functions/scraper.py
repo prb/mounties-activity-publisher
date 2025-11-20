@@ -2,7 +2,7 @@
 
 import logging
 from typing import Dict, Any
-from datetime import datetime, UTC
+from datetime import datetime, timezone
 
 from ..http_client import fetch_page
 from ..parsers import parse_activity_detail
@@ -11,7 +11,7 @@ from ..db import (
     create_activity,
     create_or_update_leader,
     create_or_update_place,
-    update_scrape_status,
+    get_transaction,
 )
 from ..tasks import enqueue_publish_task
 
@@ -65,7 +65,6 @@ def scraper_handler(activity_url: str = None) -> Dict[str, Any]:
         if activity_exists(activity_id):
             logger.info(f"Activity {activity_id} already exists, skipping")
             # Still consider this a success for bookkeeping purposes
-            update_scrape_status("Green", datetime.now(UTC))
             return {
                 'status': 'skipped',
                 'activity_id': activity_id,
@@ -90,7 +89,6 @@ def scraper_handler(activity_url: str = None) -> Dict[str, Any]:
 
         # Create activity in Firestore using a transaction
         from google.cloud import firestore
-        from ..db import get_transaction
 
         @firestore.transactional
         def create_activity_transactional(transaction, activity_obj):
@@ -122,8 +120,7 @@ def scraper_handler(activity_url: str = None) -> Dict[str, Any]:
             else:
                 raise e
 
-        # Update bookkeeping status
-        update_scrape_status("Green", datetime.now(UTC))
+
 
         if status == 'skipped':
             return {
@@ -142,10 +139,6 @@ def scraper_handler(activity_url: str = None) -> Dict[str, Any]:
 
         # Update bookkeeping status
         error_message = str(e)
-        if '429' in error_message:
-            update_scrape_status("Yellow: Backing off.")
-        else:
-            update_scrape_status(f"Red: {error_message}")
 
         return {
             'status': 'error',

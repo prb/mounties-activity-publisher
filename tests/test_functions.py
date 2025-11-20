@@ -172,6 +172,13 @@ def test_scraper_handler_success(mocker, activity_detail_html):
     mock_place_ref.id = 'ski-resorts-nordic-centers_snoqualmie-summit-ski-areas'
     mock_create_place.return_value = mock_place_ref
 
+    # Mock Transaction
+    mock_get_transaction = mocker.patch('src.functions.scraper.get_transaction')
+    mock_transaction = MagicMock()
+    mock_get_transaction.return_value = mock_transaction
+
+    # Mock create_activity (it's imported in the function, but we can patch where it's defined or used)
+    # Since it's used inside the inner function, we patch it in src.functions.scraper
     mock_create_activity = mocker.patch('src.functions.scraper.create_activity')
     mock_activity_ref = MagicMock()
     mock_activity_ref.id = 'backcountry-ski-snowboard-snoqualmie-summit-west-2-2026-02-10'
@@ -190,10 +197,16 @@ def test_scraper_handler_success(mocker, activity_detail_html):
 
     # Verify all operations were called
     mock_fetch.assert_called_once_with(activity_url)
-    mock_activity_exists.assert_called_once()
+    # activity_exists is called at the start
+    mock_activity_exists.assert_called_once() 
     mock_create_leader.assert_called_once()
     mock_create_place.assert_called_once()
+    
+    # Verify transaction usage
+    mock_get_transaction.assert_called_once()
+    # create_activity should be called with the transaction
     mock_create_activity.assert_called_once()
+    
     mock_enqueue_publish.assert_called_once_with('backcountry-ski-snowboard-snoqualmie-summit-west-2-2026-02-10')
 
 
@@ -268,6 +281,11 @@ def test_scraper_handler_continues_on_publish_enqueue_failure(mocker, activity_d
     mock_place_ref = MagicMock()
     mock_place_ref.id = 'ski-resorts-nordic-centers_snoqualmie-summit-ski-areas'
     mock_create_place.return_value = mock_place_ref
+
+    # Mock Transaction
+    mock_get_transaction = mocker.patch('src.functions.scraper.get_transaction')
+    mock_transaction = MagicMock()
+    mock_get_transaction.return_value = mock_transaction
 
     mock_create_activity = mocker.patch('src.functions.scraper.create_activity')
     mock_activity_ref = MagicMock()
