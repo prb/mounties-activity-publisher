@@ -107,6 +107,11 @@ def extract_activity_date(tree) -> datetime:
 
     date_str = date_nodes[0].strip()
 
+    # Handle multi-day activities (e.g. "Wed, Feb 11, 2026 — Thu, Feb 12, 2026")
+    # We only care about the start date
+    if "—" in date_str:
+        date_str = date_str.split("—")[0].strip()
+
     # Parse the date (assumes Pacific time)
     pacific = pytz.timezone('America/Los_Angeles')
     naive_date = datetime.strptime(date_str, "%a, %b %d, %Y")
