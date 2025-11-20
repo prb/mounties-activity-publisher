@@ -45,7 +45,8 @@ def create_activity(activity: Activity, transaction=None) -> DocumentReference:
     leader_ref = db.collection('leaders').document(activity.leader.document_id)
     place_ref = db.collection('places').document(activity.place.document_id)
 
-    # Build data dict and omit None values
+    # Build data dict
+    # Note: discord_message_id is kept even when None so we can query for unpublished activities
     data = {
         'activity_permalink': activity.activity_permalink,
         'title': activity.title,
@@ -56,10 +57,10 @@ def create_activity(activity: Activity, transaction=None) -> DocumentReference:
         'place_ref': place_ref,
         'activity_type': activity.activity_type,
         'branch': activity.branch,
-        'discord_message_id': activity.discord_message_id,
+        'discord_message_id': activity.discord_message_id,  # Always include, even if None
     }
-    # Remove keys with None values
-    data = {k: v for k, v in data.items() if v is not None}
+    # Remove other keys with None values (but keep discord_message_id)
+    data = {k: v for k, v in data.items() if k == 'discord_message_id' or v is not None}
 
     if transaction:
         transaction.set(doc_ref, data)
