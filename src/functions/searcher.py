@@ -4,9 +4,9 @@ import logging
 from typing import Dict, Any
 from datetime import datetime, timezone
 
+from ..db import activity_exists
 from ..http_client import fetch_search_results
 from ..parsers import parse_search_results
-from ..tasks import enqueue_scrape_task, enqueue_search_task
 from ..tasks import enqueue_scrape_task, enqueue_search_task
 
 
@@ -20,8 +20,9 @@ def searcher_handler(start_index: int = 0, activity_type: str = 'Backcountry Ski
     This function:
     1. Fetches search results from the Mountaineers website
     2. Extracts activity detail URLs
-    3. Enqueues a scraper task for each URL
-    4. If there's a next page, enqueues another search task
+    3. Checks if activity already exists in Firestore
+    4. Enqueues a scraper task for each NEW activity
+    5. If there's a next page, enqueues another search task
 
     Args:
         start_index: Starting index for pagination.
@@ -31,6 +32,7 @@ def searcher_handler(start_index: int = 0, activity_type: str = 'Backcountry Ski
         Dict with:
             - status: str - "success" or "error"
             - activities_found: int - Number of activities found
+            - new_activities: int - Number of new activities enqueued
             - has_next_page: bool - Whether there's a next page
             - error: str (optional) - Error message if status is "error"
 
@@ -52,14 +54,26 @@ def searcher_handler(start_index: int = 0, activity_type: str = 'Backcountry Ski
 
         logger.info(f"Found {len(activity_urls)} activities")
 
-        # Enqueue scraper tasks for each activity
+        # Enqueue scraper tasks for each NEW activity
+        new_activities_count = 0
         for url in activity_urls:
             try:
+                # Extract document ID from URL (final path segment)
+                # e.g. https://www.mountaineers.org/activities/activities/backcountry-ski-snowboard-snoqualmie-summit-west-2-2026-02-10
+                doc_id = url.rstrip('/').split('/')[-1]
+
+                if activity_exists(doc_id):
+                    logger.debug(f"Activity {doc_id} already exists, skipping scrape")
+                    continue
+
                 enqueue_scrape_task(url)
                 logger.debug(f"Enqueued scraper task for: {url}")
+                new_activities_count += 1
             except Exception as e:
                 logger.error(f"Failed to enqueue scraper task for {url}: {e}")
                 # Continue with other URLs even if one fails
+
+        logger.info(f"Enqueued {new_activities_count} new activities for scraping")
 
         # If there's a next page, enqueue another search task
         if next_page_url:
