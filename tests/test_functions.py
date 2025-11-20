@@ -36,6 +36,10 @@ def test_searcher_handler_success(mocker, search_response_html):
     mock_fetch = mocker.patch('src.functions.searcher.fetch_search_results')
     mock_fetch.return_value = search_response_html
 
+    # Mock activity_exists to always return False (all new activities)
+    mock_activity_exists = mocker.patch('src.functions.searcher.activity_exists')
+    mock_activity_exists.return_value = False
+
     # Mock enqueue functions
     mock_enqueue_scrape = mocker.patch('src.functions.searcher.enqueue_scrape_task')
     mock_enqueue_search = mocker.patch('src.functions.searcher.enqueue_search_task')
@@ -64,6 +68,10 @@ def test_searcher_handler_with_next_page(mocker, search_response_with_next_html)
     mock_fetch = mocker.patch('src.functions.searcher.fetch_search_results')
     mock_fetch.return_value = search_response_with_next_html
 
+    # Mock activity_exists to always return False
+    mock_activity_exists = mocker.patch('src.functions.searcher.activity_exists')
+    mock_activity_exists.return_value = False
+
     # Mock enqueue functions
     mock_enqueue_scrape = mocker.patch('src.functions.searcher.enqueue_scrape_task')
     mock_enqueue_search = mocker.patch('src.functions.searcher.enqueue_search_task')
@@ -88,6 +96,10 @@ def test_searcher_handler_custom_activity_type(mocker, search_response_html):
     # Mock fetch_search_results
     mock_fetch = mocker.patch('src.functions.searcher.fetch_search_results')
     mock_fetch.return_value = search_response_html
+
+    # Mock activity_exists to always return False
+    mock_activity_exists = mocker.patch('src.functions.searcher.activity_exists')
+    mock_activity_exists.return_value = False
 
     # Mock enqueue functions
     mocker.patch('src.functions.searcher.enqueue_scrape_task')
@@ -123,6 +135,10 @@ def test_searcher_handler_continues_on_enqueue_failure(mocker, search_response_h
     mock_fetch = mocker.patch('src.functions.searcher.fetch_search_results')
     mock_fetch.return_value = search_response_html
 
+    # Mock activity_exists to always return False
+    mock_activity_exists = mocker.patch('src.functions.searcher.activity_exists')
+    mock_activity_exists.return_value = False
+
     # Mock enqueue to fail on some calls
     mock_enqueue_scrape = mocker.patch('src.functions.searcher.enqueue_scrape_task')
     mock_enqueue_scrape.side_effect = [
@@ -148,6 +164,36 @@ def test_searcher_handler_continues_on_enqueue_failure(mocker, search_response_h
     # Should still return success
     assert result['status'] == 'success'
     assert result['activities_found'] == 14
+
+
+def test_searcher_handler_skips_existing_activities(mocker, search_response_html):
+    """Test that searcher skips activities that already exist in Firestore."""
+    # Mock fetch_search_results
+    mock_fetch = mocker.patch('src.functions.searcher.fetch_search_results')
+    mock_fetch.return_value = search_response_html
+
+    # Mock activity_exists
+    mock_activity_exists = mocker.patch('src.functions.searcher.activity_exists')
+    # Make it return True for the first activity, False for others
+    # The sample HTML has 14 activities
+    # We'll say the first 5 exist
+    mock_activity_exists.side_effect = [True] * 5 + [False] * 9
+
+    # Mock enqueue functions
+    mock_enqueue_scrape = mocker.patch('src.functions.searcher.enqueue_scrape_task')
+    mock_enqueue_search = mocker.patch('src.functions.searcher.enqueue_search_task')
+
+    # Call handler
+    result = searcher_handler(start_index=0)
+
+    # Verify result
+    assert result['status'] == 'success'
+    assert result['activities_found'] == 14
+    # Should have enqueued only 9 tasks (14 found - 5 existing)
+    assert mock_enqueue_scrape.call_count == 9
+
+    # Verify activity_exists was called for each activity
+    assert mock_activity_exists.call_count == 14
 
 
 # Scraper Function Tests
