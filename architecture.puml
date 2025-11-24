@@ -22,6 +22,9 @@ component "Searcher\nFunction" as searcher FUNCTION
 component "Scraper\nFunction" as scraper FUNCTION
 component "Publisher\nFunction" as publisher FUNCTION
 component "Publishing Catchup\nFunction" as catchup FUNCTION
+component "Pause Processing\nFunction" as pause FUNCTION
+component "Resume Processing\nFunction" as resume FUNCTION
+component "Drain Queues\nFunction" as drain FUNCTION
 
 ' Cloud Tasks Queues
 queue "search-queue\n10/min" as search_queue QUEUE
@@ -34,6 +37,7 @@ database "Firestore\nCollections" as firestore STORAGE {
   folder "leaders"
   folder "places"
   folder "bookkeeping"
+  folder "system"
 }
 
 ' Secret Manager
@@ -63,5 +67,13 @@ publisher --> firestore : update discord_message_id,\nbookkeeping
 catchup_scheduler --> catchup : trigger :30
 catchup --> firestore : query unpublished\nactivities
 catchup --> publish_queue : enqueue activity IDs
+
+' Flow - Queue management (manual operations)
+pause -> firestore : set processing_enabled=false
+resume -> firestore : set processing_enabled=true
+drain -> search_queue : purge all tasks
+drain -> scrape_queue : purge all tasks
+searcher -> firestore : check processing_enabled
+scraper -> firestore : check processing_enabled
 
 @enduml

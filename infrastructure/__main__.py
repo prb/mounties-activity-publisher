@@ -83,6 +83,12 @@ error_log_policy = gcp.monitoring.AlertPolicy("error-log-policy",
 #     type="FIRESTORE_NATIVE",
 #     opts=pulumi.ResourceOptions(protect=True)) # Protect database from deletion
 
+# Initialize system configuration document
+# This ensures the processing_enabled flag exists with a default value
+# Note: Firestore documents are created via the Firestore API, not Pulumi resources
+# This would typically be done via a deployment script or the first time the functions run
+# The config.py module has fail-open behavior (defaults to True if not set)
+
 # 3. Service Accounts
 scheduler_sa = gcp.serviceaccount.Account("scheduler-invoker",
     account_id="scheduler-invoker",
@@ -283,10 +289,88 @@ publishing_catchup = gcp.cloudfunctionsv2.Function("publishing-catchup",
     )
 )
 
+# Pause Processing Function
+pause_processing = gcp.cloudfunctionsv2.Function("pause-processing",
+    location=region,
+    name="pause-processing",
+    build_config=gcp.cloudfunctionsv2.FunctionBuildConfigArgs(
+        runtime="python311",
+        entry_point="pause_processing",
+        source=gcp.cloudfunctionsv2.FunctionBuildConfigSourceArgs(
+            storage_source=gcp.cloudfunctionsv2.FunctionBuildConfigSourceStorageSourceArgs(
+                bucket=source_bucket.name,
+                object=source_object.name,
+            )
+        )
+    ),
+    service_config=gcp.cloudfunctionsv2.FunctionServiceConfigArgs(
+        max_instance_count=1,
+        available_memory="256M",
+        timeout_seconds=60,
+        environment_variables={
+            "GCP_PROJECT": project,
+            "GCP_LOCATION": region,
+            "DEPLOY_ENV": deploy_env,
+        }
+    )
+)
+
+# Resume Processing Function
+resume_processing = gcp.cloudfunctionsv2.Function("resume-processing",
+    location=region,
+    name="resume-processing",
+    build_config=gcp.cloudfunctionsv2.FunctionBuildConfigArgs(
+        runtime="python311",
+        entry_point="resume_processing",
+        source=gcp.cloudfunctionsv2.FunctionBuildConfigSourceArgs(
+            storage_source=gcp.cloudfunctionsv2.FunctionBuildConfigSourceStorageSourceArgs(
+                bucket=source_bucket.name,
+                object=source_object.name,
+            )
+        )
+    ),
+    service_config=gcp.cloudfunctionsv2.FunctionServiceConfigArgs(
+        max_instance_count=1,
+        available_memory="256M",
+        timeout_seconds=60,
+        environment_variables={
+            "GCP_PROJECT": project,
+            "GCP_LOCATION": region,
+            "DEPLOY_ENV": deploy_env,
+        }
+    )
+)
+
+# Drain Queues Function
+drain_queues = gcp.cloudfunctionsv2.Function("drain-queues",
+    location=region,
+    name="drain-queues",
+    build_config=gcp.cloudfunctionsv2.FunctionBuildConfigArgs(
+        runtime="python311",
+        entry_point="drain_queues",
+        source=gcp.cloudfunctionsv2.FunctionBuildConfigSourceArgs(
+            storage_source=gcp.cloudfunctionsv2.FunctionBuildConfigSourceStorageSourceArgs(
+                bucket=source_bucket.name,
+                object=source_object.name,
+            )
+        )
+    ),
+    service_config=gcp.cloudfunctionsv2.FunctionServiceConfigArgs(
+        max_instance_count=1,
+        available_memory="256M",
+        timeout_seconds=60,
+        environment_variables={
+            "GCP_PROJECT": project,
+            "GCP_LOCATION": region,
+            "DEPLOY_ENV": deploy_env,
+        }
+    )
+)
+
 # 7. IAM Bindings
 
 # Grant Cloud Run Invoker to Scheduler SA for each function
-functions = [searcher, scraper, publisher, publishing_catchup]
+functions = [searcher, scraper, publisher, publishing_catchup, pause_processing, resume_processing, drain_queues]
 for func in functions:
     gcp.cloudrun.IamMember(f"invoker-{func._name}",
         service=func.name,
@@ -357,3 +441,6 @@ catchup_job = gcp.cloudscheduler.Job("publishing-catchup-scheduler",
 pulumi.export("searcher_url", searcher.service_config.uri)
 pulumi.export("scraper_url", scraper.service_config.uri)
 pulumi.export("publisher_url", publisher.service_config.uri)
+pulumi.export("pause_processing_url", pause_processing.service_config.uri)
+pulumi.export("resume_processing_url", resume_processing.service_config.uri)
+pulumi.export("drain_queues_url", drain_queues.service_config.uri)

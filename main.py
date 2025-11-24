@@ -9,7 +9,15 @@ import functions_framework
 from flask import Request
 
 from src.db import initialize_firebase
-from src.functions import searcher_handler, scraper_handler, publisher_handler, publishing_catchup_handler
+from src.functions import (
+    searcher_handler,
+    scraper_handler,
+    publisher_handler,
+    publishing_catchup_handler,
+    pause_processing_handler,
+    resume_processing_handler,
+    drain_queues_handler,
+)
 
 
 # Configure logging
@@ -152,4 +160,75 @@ def publishing_catchup(request: Request):
 
     logger.info(f"Publishing Catchup result: {result}")
     logger.info("=== Publishing Catchup function completed ===")
+    return result
+
+
+@functions_framework.http
+def pause_processing(request: Request):
+    """
+    Pause Processing Cloud Function - disables searcher and scraper.
+
+    Triggered by: Manual invocation (admin operation)
+
+    Expected JSON payload: {} (no parameters required)
+
+    Returns:
+    {
+        "status": "success",
+        "message": "Processing has been paused"
+    }
+    """
+    logger.info("=== Pause Processing function invoked ===")
+    result = pause_processing_handler()
+
+    logger.info(f"Pause Processing result: {result}")
+    logger.info("=== Pause Processing function completed ===")
+    return result
+
+
+@functions_framework.http
+def resume_processing(request: Request):
+    """
+    Resume Processing Cloud Function - enables searcher and scraper.
+
+    Triggered by: Manual invocation (admin operation)
+
+    Expected JSON payload: {} (no parameters required)
+
+    Returns:
+    {
+        "status": "success",
+        "message": "Processing has been resumed"
+    }
+    """
+    logger.info("=== Resume Processing function invoked ===")
+    result = resume_processing_handler()
+
+    logger.info(f"Resume Processing result: {result}")
+    logger.info("=== Resume Processing function completed ===")
+    return result
+
+
+@functions_framework.http
+def drain_queues(request: Request):
+    """
+    Drain Queues Cloud Function - purges all tasks from search and scrape queues.
+
+    Triggered by: Manual invocation (admin operation)
+
+    Expected JSON payload: {} (no parameters required)
+
+    Returns:
+    {
+        "status": "success",
+        "message": "Successfully drained search-queue and scrape-queue",
+        "search_queue_drained": true,
+        "scrape_queue_drained": true
+    }
+    """
+    logger.info("=== Drain Queues function invoked ===")
+    result = drain_queues_handler()
+
+    logger.info(f"Drain Queues result: {result}")
+    logger.info("=== Drain Queues function completed ===")
     return result

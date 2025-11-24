@@ -14,6 +14,7 @@ from ..db import (
     get_transaction,
 )
 from ..tasks import enqueue_publish_task
+from ..config import is_processing_enabled
 
 
 logger = logging.getLogger(__name__)
@@ -50,6 +51,14 @@ def scraper_handler(activity_url: str = None) -> Dict[str, Any]:
         True
     """
     try:
+        # Check if processing is enabled
+        if not is_processing_enabled():
+            logger.info("Processing is disabled, skipping scrape task")
+            return {
+                'status': 'skipped',
+                'reason': 'Processing is currently disabled',
+            }
+
         if not activity_url:
             return {
                 'status': 'error',

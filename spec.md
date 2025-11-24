@@ -16,7 +16,9 @@ This project will use Google Firebase features and functionality, specifically:
 - Cloud Function to host the searching code.  This will be called by Cloud Tasks.  The searching code will determine if there are additional pages of results to process and enqueue successive search tasks for those.
 - Cloud Function to host the scraping code.  This will be called by Cloud Tasks.
 - Cloud Function to host the Discord publishing code.  This will be called by Cloud Tasks.
+- Cloud Functions for queue management (pause processing, resume processing, drain queues). These are manually invoked for operational control.
 - Cloud Firestore to host the persistent cache(s) in the form of document collection(s).
+- Cloud Firestore to store system configuration (processing control flags).
 - Google Cloud Tasks configured with one queue for searching tasks, one for scraping tasks, and one for publishing tasks.
 - Firebase Remote Config to manage configuration.
 - Google Cloud Secrets to manage secrets.
@@ -215,6 +217,15 @@ The status message should be one of:
 - `Green` if the function completed successfully.
 - `Yellow: Backing off.` if the function is in backoff due to a `429`
 - `Red: {message}` if the function failed, and `{message}` is a descriptive message.
+
+### System Configuration Collection
+The `system` collection contains configuration documents for operational control:
+
+#### Config Document (`system/config`)
+- `processing_enabled` (boolean): Controls whether searcher and scraper functions process tasks. When `false`, these functions return early without processing. Defaults to `true` if not set.
+- `updated_at` (timestamp): Last update time for the configuration.
+
+This flag is used by the queue management functions (`pause_processing`, `resume_processing`) to control processing flow during operational scenarios like data cleanup.
 
 ## Discord Publishing
 

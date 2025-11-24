@@ -251,3 +251,71 @@ Functions are configured to handle 429 responses gracefully and will back off. C
      --format="yaml(status)"
    ```
 
+## Queue Management
+
+The system includes queue management functions to handle scenarios with bad or undesirable data.
+
+### Processing Control
+
+Processing can be paused and resumed using Firestore-based configuration:
+
+```bash
+# Pause processing (stops searcher and scraper from processing new tasks)
+gcloud functions call pause-processing \
+  --region=$GCP_REGION \
+  --gen2
+
+# Resume processing
+gcloud functions call resume-processing \
+  --region=$GCP_REGION \
+  --gen2
+
+# Drain queues (purge all pending tasks)
+gcloud functions call drain-queues \
+  --region=$GCP_REGION \
+  --gen2
+```
+
+### Recommended Workflow for Data Issues
+
+When bad or undesirable data enters the system:
+
+1. **Pause processing** to prevent new tasks from being processed:
+   ```bash
+   gcloud functions call pause-processing --region=$GCP_REGION --gen2
+   ```
+
+2. **Drain queues** to clear all pending tasks:
+   ```bash
+   gcloud functions call drain-queues --region=$GCP_REGION --gen2
+   ```
+
+3. **Fix data issues** in Firestore manually or via scripts
+
+4. **Resume processing** to restart the pipeline:
+   ```bash
+   gcloud functions call resume-processing --region=$GCP_REGION --gen2
+   ```
+
+### Manual Flag Control
+
+You can also manually control the processing flag in Firestore:
+
+```bash
+# View current processing state
+gcloud firestore databases documents describe \
+  projects/${GCP_PROJECT}/databases/(default)/documents/system/config
+
+# Update processing flag (using Firestore console or gcloud)
+# Collection: system
+# Document: config
+# Field: processing_enabled (boolean)
+```
+
+When processing is paused, searcher and scraper functions will return:
+```json
+{
+  "status": "skipped",
+  "reason": "Processing is currently disabled"
+}
+```
