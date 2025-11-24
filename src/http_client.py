@@ -52,13 +52,13 @@ def fetch_search_results(start_index: int = 0, activity_type: str = 'Backcountry
         activity_type: Type of activity to search for (default: 'Backcountry Skiing')
 
     Returns:
-        HTML content as string
+        Tuple of (HTML content as string, constructed URL)
 
     Raises:
         requests.exceptions.RequestException: If the request fails
 
     Example:
-        >>> html = fetch_search_results(start_index=0)
+        >>> html, url = fetch_search_results(start_index=0)
         >>> 'result-item' in html
         True
     """
@@ -70,9 +70,12 @@ def fetch_search_results(start_index: int = 0, activity_type: str = 'Backcountry
     params = {
         'b_start:int': start_index,
         'c8[]': activity_type,
+        'type[]': 'mtneers.activity',
     }
 
     # Construct full URL
     url = f"{base_url}?{urlencode(params, safe='[]')}"
 
-    return fetch_page(url)
+    html = fetch_page(url)
+    return html, url
+

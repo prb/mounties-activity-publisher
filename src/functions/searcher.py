@@ -47,10 +47,12 @@ def searcher_handler(start_index: int = 0, activity_type: str = 'Backcountry Ski
         logger.info(f"Searching for {activity_type} activities starting at index {start_index}")
 
         # Fetch search results
-        html = fetch_search_results(start_index=start_index, activity_type=activity_type)
+        html, search_url = fetch_search_results(start_index=start_index, activity_type=activity_type)
+        logger.info(f"Search URI: {search_url}")
 
         # Parse search results
         activity_urls, next_page_url = parse_search_results(html)
+
 
         logger.info(f"Found {len(activity_urls)} activities")
 
