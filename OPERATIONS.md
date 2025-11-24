@@ -260,45 +260,20 @@ The system includes queue management functions to handle scenarios with bad or u
 Processing can be paused and resumed using Firestore-based configuration:
 
 ```bash
-# Get function URLs
-PAUSE_URL=$(gcloud functions describe pause-processing \
-  --region=$GCP_REGION \
-  --gen2 \
-  --format="value(serviceConfig.uri)")
-
-RESUME_URL=$(gcloud functions describe resume-processing \
-  --region=$GCP_REGION \
-  --gen2 \
-  --format="value(serviceConfig.uri)")
-
-DRAIN_URL=$(gcloud functions describe drain-queues \
-  --region=$GCP_REGION \
-  --gen2 \
-  --format="value(serviceConfig.uri)")
-
-# Get identity token
-TOKEN=$(gcloud auth print-identity-token)
-
 # Pause processing (stops searcher and scraper from processing new tasks)
-curl -X POST \
-  -H "Authorization: Bearer $TOKEN" \
-  -H "Content-Type: application/json" \
-  -d '{}' \
-  $PAUSE_URL
+gcloud functions call pause-processing \
+  --region=$GCP_REGION \
+  --gen2
 
 # Resume processing
-curl -X POST \
-  -H "Authorization: Bearer $TOKEN" \
-  -H "Content-Type: application/json" \
-  -d '{}' \
-  $RESUME_URL
+gcloud functions call resume-processing \
+  --region=$GCP_REGION \
+  --gen2
 
 # Drain queues (purge all pending tasks)
-curl -X POST \
-  -H "Authorization: Bearer $TOKEN" \
-  -H "Content-Type: application/json" \
-  -d '{}' \
-  $DRAIN_URL
+gcloud functions call drain-queues \
+  --region=$GCP_REGION \
+  --gen2
 ```
 
 ### Recommended Workflow for Data Issues
@@ -307,19 +282,19 @@ When bad or undesirable data enters the system:
 
 1. **Pause processing** to prevent new tasks from being processed:
    ```bash
-   curl -X POST -H "Authorization: Bearer $TOKEN" -d '{}' $PAUSE_URL
+   gcloud functions call pause-processing --region=$GCP_REGION --gen2
    ```
 
 2. **Drain queues** to clear all pending tasks:
    ```bash
-   curl -X POST -H "Authorization: Bearer $TOKEN" -d '{}' $DRAIN_URL
+   gcloud functions call drain-queues --region=$GCP_REGION --gen2
    ```
 
 3. **Fix data issues** in Firestore manually or via scripts
 
 4. **Resume processing** to restart the pipeline:
    ```bash
-   curl -X POST -H "Authorization: Bearer $TOKEN" -d '{}' $RESUME_URL
+   gcloud functions call resume-processing --region=$GCP_REGION --gen2
    ```
 
 ### Manual Flag Control
