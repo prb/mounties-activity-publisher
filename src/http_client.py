@@ -62,7 +62,10 @@ def fetch_search_results(start_index: int = 0, activity_type: str = 'Backcountry
         >>> 'result-item' in html
         True
     """
+    import logging
     from urllib.parse import urlencode
+
+    logger = logging.getLogger(__name__)
 
     base_url = 'https://www.mountaineers.org/search/@@faceted_query'
 
@@ -70,9 +73,13 @@ def fetch_search_results(start_index: int = 0, activity_type: str = 'Backcountry
     params = {
         'b_start:int': start_index,
         'c8[]': activity_type,
+        'type[]': 'mtneers.activity',
     }
 
     # Construct full URL
     url = f"{base_url}?{urlencode(params, safe='[]')}"
+    
+    logger.info(f"Fetching search results from: {url}")
 
     return fetch_page(url)
+

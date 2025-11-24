@@ -52,6 +52,7 @@ def searcher_handler(start_index: int = 0, activity_type: str = 'Backcountry Ski
         # Parse search results
         activity_urls, next_page_url = parse_search_results(html)
 
+
         logger.info(f"Found {len(activity_urls)} activities")
 
         # Enqueue scraper tasks for each NEW activity
