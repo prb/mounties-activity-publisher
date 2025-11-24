@@ -52,17 +52,20 @@ def fetch_search_results(start_index: int = 0, activity_type: str = 'Backcountry
         activity_type: Type of activity to search for (default: 'Backcountry Skiing')
 
     Returns:
-        Tuple of (HTML content as string, constructed URL)
+        HTML content as string
 
     Raises:
         requests.exceptions.RequestException: If the request fails
 
     Example:
-        >>> html, url = fetch_search_results(start_index=0)
+        >>> html = fetch_search_results(start_index=0)
         >>> 'result-item' in html
         True
     """
+    import logging
     from urllib.parse import urlencode
+
+    logger = logging.getLogger(__name__)
 
     base_url = 'https://www.mountaineers.org/search/@@faceted_query'
 
@@ -75,7 +78,8 @@ def fetch_search_results(start_index: int = 0, activity_type: str = 'Backcountry
 
     # Construct full URL
     url = f"{base_url}?{urlencode(params, safe='[]')}"
+    
+    logger.info(f"Fetching search results from: {url}")
 
-    html = fetch_page(url)
-    return html, url
+    return fetch_page(url)
 
