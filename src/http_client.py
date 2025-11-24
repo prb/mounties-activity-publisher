@@ -69,7 +69,7 @@ def fetch_search_results(start_index: int = 0, activity_type: str = 'Backcountry
     # Build query parameters
     params = {
         'b_start:int': start_index,
-        'c4[]': activity_type,
+        'c8[]': activity_type,
     }
 
     # Construct full URL

@@ -263,7 +263,7 @@ This cloud function should query the `activities` collection for documents witho
 The activities search endpoint from the Mountaineers website presents a single `GET` endpoint as follows:
 
 ```
-https://www.mountaineers.org/search/@@faceted_query?b_start:int=[start_index]&c4%5B%5D=[type]
+https://www.mountaineers.org/search/@@faceted_query?b_start:int=[start_index]&c8%5B%5D=[type]
 ```
 
 The `[start_index]` parameter is a zero-based record number to start the page of results at; pages are of length up to 20, with a page of fewer than 20 records indicating the end of the results.  The `[type]` parameter is one of the following activity types:
