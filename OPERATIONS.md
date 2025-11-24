@@ -251,3 +251,96 @@ Functions are configured to handle 429 responses gracefully and will back off. C
      --format="yaml(status)"
    ```
 
+## Queue Management
+
+The system includes queue management functions to handle scenarios with bad or undesirable data.
+
+### Processing Control
+
+Processing can be paused and resumed using Firestore-based configuration:
+
+```bash
+# Get function URLs
+PAUSE_URL=$(gcloud functions describe pause-processing \
+  --region=$GCP_REGION \
+  --gen2 \
+  --format="value(serviceConfig.uri)")
+
+RESUME_URL=$(gcloud functions describe resume-processing \
+  --region=$GCP_REGION \
+  --gen2 \
+  --format="value(serviceConfig.uri)")
+
+DRAIN_URL=$(gcloud functions describe drain-queues \
+  --region=$GCP_REGION \
+  --gen2 \
+  --format="value(serviceConfig.uri)")
+
+# Get identity token
+TOKEN=$(gcloud auth print-identity-token)
+
+# Pause processing (stops searcher and scraper from processing new tasks)
+curl -X POST \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{}' \
+  $PAUSE_URL
+
+# Resume processing
+curl -X POST \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{}' \
+  $RESUME_URL
+
+# Drain queues (purge all pending tasks)
+curl -X POST \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{}' \
+  $DRAIN_URL
+```
+
+### Recommended Workflow for Data Issues
+
+When bad or undesirable data enters the system:
+
+1. **Pause processing** to prevent new tasks from being processed:
+   ```bash
+   curl -X POST -H "Authorization: Bearer $TOKEN" -d '{}' $PAUSE_URL
+   ```
+
+2. **Drain queues** to clear all pending tasks:
+   ```bash
+   curl -X POST -H "Authorization: Bearer $TOKEN" -d '{}' $DRAIN_URL
+   ```
+
+3. **Fix data issues** in Firestore manually or via scripts
+
+4. **Resume processing** to restart the pipeline:
+   ```bash
+   curl -X POST -H "Authorization: Bearer $TOKEN" -d '{}' $RESUME_URL
+   ```
+
+### Manual Flag Control
+
+You can also manually control the processing flag in Firestore:
+
+```bash
+# View current processing state
+gcloud firestore databases documents describe \
+  projects/${GCP_PROJECT}/databases/(default)/documents/system/config
+
+# Update processing flag (using Firestore console or gcloud)
+# Collection: system
+# Document: config
+# Field: processing_enabled (boolean)
+```
+
+When processing is paused, searcher and scraper functions will return:
+```json
+{
+  "status": "skipped",
+  "reason": "Processing is currently disabled"
+}
+```
