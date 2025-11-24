@@ -14,32 +14,23 @@ COLLECTION_NAME = 'activities'
 
 def create_activity(activity: Activity, transaction=None) -> DocumentReference:
     """
-    Create an activity document in Firestore.
+    Create or update an activity document in Firestore.
+    
+    This function is idempotent - calling it multiple times with the same
+    activity will simply overwrite the document with the same data.
 
     Note: This assumes leader and place documents already exist.
 
     Args:
         activity: Activity object to store
-        transaction: Optional Firestore transaction to use
+        transaction: Optional Firestore transaction to use (deprecated, kept for compatibility)
 
     Returns:
-        DocumentReference for the created activity
-
-    Raises:
-        ValueError: If activity already exists
+        DocumentReference for the created/updated activity
     """
     db = get_firestore_client()
     doc_id = activity.document_id
     doc_ref = db.collection(COLLECTION_NAME).document(doc_id)
-
-    # Check if already exists
-    if transaction:
-        snapshot = doc_ref.get(transaction=transaction)
-        if snapshot.exists:
-            raise ValueError(f"Activity {doc_id} already exists")
-    else:
-        if doc_ref.get().exists:
-            raise ValueError(f"Activity {doc_id} already exists")
 
     # Create references to leader and place
     leader_ref = db.collection('leaders').document(activity.leader.document_id)
@@ -62,6 +53,7 @@ def create_activity(activity: Activity, transaction=None) -> DocumentReference:
     # Remove other keys with None values (but keep discord_message_id)
     data = {k: v for k, v in data.items() if k == 'discord_message_id' or v is not None}
 
+    # Idempotent set - will create or overwrite
     if transaction:
         transaction.set(doc_ref, data)
     else:

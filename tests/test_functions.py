@@ -205,9 +205,6 @@ def test_scraper_handler_success(mocker, activity_detail_html):
     mock_fetch.return_value = activity_detail_html
 
     # Mock Firestore operations
-    mock_activity_exists = mocker.patch('src.functions.scraper.activity_exists')
-    mock_activity_exists.return_value = False
-
     mock_create_leader = mocker.patch('src.functions.scraper.create_or_update_leader')
     mock_leader_ref = MagicMock()
     mock_leader_ref.id = 'randolph-oakley'
@@ -218,13 +215,7 @@ def test_scraper_handler_success(mocker, activity_detail_html):
     mock_place_ref.id = 'ski-resorts-nordic-centers_snoqualmie-summit-ski-areas'
     mock_create_place.return_value = mock_place_ref
 
-    # Mock Transaction
-    mock_get_transaction = mocker.patch('src.functions.scraper.get_transaction')
-    mock_transaction = MagicMock()
-    mock_get_transaction.return_value = mock_transaction
-
-    # Mock create_activity (it's imported in the function, but we can patch where it's defined or used)
-    # Since it's used inside the inner function, we patch it in src.functions.scraper
+    # Mock create_activity - now idempotent, no transaction needed
     mock_create_activity = mocker.patch('src.functions.scraper.create_activity')
     mock_activity_ref = MagicMock()
     mock_activity_ref.id = 'backcountry-ski-snowboard-snoqualmie-summit-west-2-2026-02-10'
@@ -243,42 +234,14 @@ def test_scraper_handler_success(mocker, activity_detail_html):
 
     # Verify all operations were called
     mock_fetch.assert_called_once_with(activity_url)
-    # activity_exists is called at the start
-    mock_activity_exists.assert_called_once() 
     mock_create_leader.assert_called_once()
     mock_create_place.assert_called_once()
-    
-    # Verify transaction usage
-    mock_get_transaction.assert_called_once()
-    # create_activity should be called with the transaction
     mock_create_activity.assert_called_once()
-    
     mock_enqueue_publish.assert_called_once_with('backcountry-ski-snowboard-snoqualmie-summit-west-2-2026-02-10')
 
 
-def test_scraper_handler_skips_existing_activity(mocker):
-    """Test that scraper skips activities that already exist."""
-    # Mock activity_exists to return True
-    mock_activity_exists = mocker.patch('src.functions.scraper.activity_exists')
-    mock_activity_exists.return_value = True
-
-    # Mock other functions (should not be called)
-    mock_fetch = mocker.patch('src.functions.scraper.fetch_page')
-    mock_create_activity = mocker.patch('src.functions.scraper.create_activity')
-
-    # Call handler
-    activity_url = 'https://www.mountaineers.org/activities/activities/some-existing-activity'
-    result = scraper_handler(activity_url=activity_url)
-
-    # Verify result
-    assert result['status'] == 'skipped'
-    assert result['activity_id'] == 'some-existing-activity'
-    assert 'already exists' in result['reason']
-
-    # Verify fetch and create were not called
-    mock_fetch.assert_not_called()
-    mock_create_activity.assert_not_called()
-
+# Removed test_scraper_handler_skips_existing_activity - scraper is now idempotent
+# and will overwrite existing activities instead of skipping them
 
 def test_scraper_handler_missing_url(mocker):
     """Test that scraper returns error if activity_url is missing."""
@@ -290,13 +253,9 @@ def test_scraper_handler_missing_url(mocker):
 
 def test_scraper_handler_http_error(mocker):
     """Test scraper handling HTTP error."""
-    # Mock activity_exists
-    mock_activity_exists = mocker.patch('src.functions.scraper.activity_exists')
-    mock_activity_exists.return_value = False
-
-    # Mock fetch to raise an exception
+    # Mock fetch_page to raise exception
     mock_fetch = mocker.patch('src.functions.scraper.fetch_page')
-    mock_fetch.side_effect = Exception('Network error')
+    mock_fetch.side_effect = Exception("HTTP error")
 
     # Call handler
     result = scraper_handler(
@@ -305,7 +264,7 @@ def test_scraper_handler_http_error(mocker):
 
     # Verify error response
     assert result['status'] == 'error'
-    assert 'Network error' in result['error']
+    assert 'HTTP error' in result['error']
 
 
 def test_scraper_handler_continues_on_publish_enqueue_failure(mocker, activity_detail_html):
@@ -315,8 +274,6 @@ def test_scraper_handler_continues_on_publish_enqueue_failure(mocker, activity_d
     mock_fetch.return_value = activity_detail_html
 
     # Mock Firestore operations
-    mock_activity_exists = mocker.patch('src.functions.scraper.activity_exists')
-    mock_activity_exists.return_value = False
 
     mock_create_leader = mocker.patch('src.functions.scraper.create_or_update_leader')
     mock_leader_ref = MagicMock()

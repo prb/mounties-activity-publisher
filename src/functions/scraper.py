@@ -7,7 +7,6 @@ from datetime import datetime, timezone
 from ..http_client import fetch_page
 from ..parsers import parse_activity_detail
 from ..db import (
-    activity_exists,
     create_activity,
     create_or_update_leader,
     create_or_update_place,
@@ -70,17 +69,6 @@ def scraper_handler(activity_url: str = None) -> Dict[str, Any]:
 
         # Extract document ID from URL (final path segment)
         activity_id = activity_url.rstrip('/').split('/')[-1]
-
-        # Check if activity already exists
-        if activity_exists(activity_id):
-            logger.info(f"Activity {activity_id} already exists, skipping scrape")
-            # Still consider this a success for bookkeeping purposes
-            update_scrape_status("Green", success=True)
-            return {
-                'status': 'skipped',
-                'activity_id': activity_id,
-                'reason': 'Activity already exists in Firestore',
-            }
 
         # Fetch activity detail page
         html = fetch_page(activity_url)
