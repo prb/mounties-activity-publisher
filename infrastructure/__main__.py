@@ -286,7 +286,7 @@ publishing_catchup = gcp.cloudfunctionsv2.Function("publishing-catchup",
 # 7. IAM Bindings
 
 # Grant Cloud Run Invoker to Scheduler SA for each function
-functions = [searcher, scraper, publisher, publishing_catchup]
+functions = [searcher, scraper, publisher, publishing_catchup, pause_processing, resume_processing, drain_queues]
 for func in functions:
     gcp.cloudrun.IamMember(f"invoker-{func._name}",
         service=func.name,
@@ -357,3 +357,6 @@ catchup_job = gcp.cloudscheduler.Job("publishing-catchup-scheduler",
 pulumi.export("searcher_url", searcher.service_config.uri)
 pulumi.export("scraper_url", scraper.service_config.uri)
 pulumi.export("publisher_url", publisher.service_config.uri)
+pulumi.export("pause_processing_url", pause_processing.service_config.uri)
+pulumi.export("resume_processing_url", resume_processing.service_config.uri)
+pulumi.export("drain_queues_url", drain_queues.service_config.uri)
