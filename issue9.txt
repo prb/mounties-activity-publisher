@@ -1,0 +1,47 @@
+```JSON
+{
+  "textPayload": "Error in scraper_handler: unconverted data remains: \n            — Thu, Feb 12, 2026\nTraceback (most recent call last):\n  File \"/workspace/src/functions/scraper.py\", line 78, in scraper_handler\n    activity = parse_activity_detail(html, activity_url)\n               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/workspace/src/parsers/detail_parser.py\", line 34, in parse_activity_detail\n    activity_date = extract_activity_date(tree)\n                    ^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/workspace/src/parsers/detail_parser.py\", line 112, in extract_activity_date\n    naive_date = datetime.strptime(date_str, \"%a, %b %d, %Y\")\n                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/layers/google.python.runtime/python/lib/python3.11/_strptime.py\", line 567, in _strptime_datetime\n    tt, fraction, gmtoff_fraction = _strptime(data_string, format)\n                                    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/layers/google.python.runtime/python/lib/python3.11/_strptime.py\", line 352, in _strptime\n    raise ValueError(\"unconverted data remains: %s\" %\nValueError: unconverted data remains: \n            — Thu, Feb 12, 2026",
+  "insertId": "691e9260000b7435f41957fe",
+  "httpRequest": {
+    "requestMethod": "POST",
+    "requestUrl": "http://us-central1-backcountry-ski-activity-feed.cloudfunctions.net/",
+    "userAgent": "Google-Cloud-Tasks",
+    "protocol": "HTTP/1.1"
+  },
+  "resource": {
+    "type": "cloud_run_revision",
+    "labels": {
+      "revision_name": "scraper-00026-jay",
+      "location": "us-central1",
+      "project_id": "backcountry-ski-activity-feed",
+      "service_name": "scraper",
+      "configuration_name": "scraper"
+    }
+  },
+  "timestamp": "2025-11-20T04:00:32.750645Z",
+  "severity": "ERROR",
+  "labels": {
+    "goog-managed-by": "cloudfunctions",
+    "instanceId": "0014778296d006321072c7c9e809dac919e997667a07bb5ba8af1187e1f95e0837d5f5bee452e008a0bf77a246b2910fd8401fb7ad95bc41a349ae6b235d7f277f18e030649134fc9b529840ecb0",
+    "goog-drz-cloudfunctions-id": "scraper",
+    "run.googleapis.com/base_image_versions": "us-docker.pkg.dev/serverless-runtimes/google-22-full/runtimes/python311:python311_20251109_3_11_14_RC00",
+    "goog-drz-cloudfunctions-location": "us-central1",
+    "python_logger": "src.functions.scraper"
+  },
+  "logName": "projects/backcountry-ski-activity-feed/logs/run.googleapis.com%2Fstdout",
+  "trace": "projects/backcountry-ski-activity-feed/traces/a5e62674cbf7e920c4ace9fa4b77fcbb",
+  "sourceLocation": {
+    "file": "/workspace/src/functions/scraper.py",
+    "line": "138",
+    "function": "scraper_handler"
+  },
+  "receiveTimestamp": "2025-11-20T04:00:32.820377357Z",
+  "spanId": "a861341301d1a3ff",
+  "traceSampled": true,
+  "errorGroups": [
+    {
+      "id": "CLrhlPiVyunV3AE"
+    }
+  ]
+}
+```

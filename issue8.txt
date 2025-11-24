@@ -1,0 +1,48 @@
+
+```json
+{
+  "textPayload": "Error in publishing_catchup_handler: Filter must be provided through positional arguments or the 'filter' keyword argument.\nTraceback (most recent call last):\n  File \"/workspace/src/functions/catchup.py\", line 42, in publishing_catchup_handler\n    activity_ids = get_unpublished_activity_ids()\n                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/workspace/src/db/activities.py\", line 229, in get_unpublished_activity_ids\n    query = db.collection(COLLECTION_NAME).where(filter=('discord_message_id', '==', None))\n            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/layers/google.python.pip/pip/lib/python3.11/site-packages/google/cloud/firestore_v1/base_collection.py\", line 306, in where\n    return query.where(filter=filter)\n           ^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/layers/google.python.pip/pip/lib/python3.11/site-packages/google/cloud/firestore_v1/base_query.py\", line 525, in where\n    raise ValueError(\nValueError: Filter must be provided through positional arguments or the 'filter' keyword argument.",
+  "insertId": "691e994e00017add7f38b79b",
+  "httpRequest": {
+    "requestMethod": "POST",
+    "requestUrl": "http://publishing-catchup-j4l6lxce7q-uc.a.run.app/",
+    "userAgent": "Google-Cloud-Scheduler",
+    "protocol": "HTTP/1.1"
+  },
+  "resource": {
+    "type": "cloud_run_revision",
+    "labels": {
+      "service_name": "publishing-catchup",
+      "project_id": "backcountry-ski-activity-feed",
+      "revision_name": "publishing-catchup-00008-fam",
+      "configuration_name": "publishing-catchup",
+      "location": "us-central1"
+    }
+  },
+  "timestamp": "2025-11-20T04:30:06.096989Z",
+  "severity": "ERROR",
+  "labels": {
+    "goog-drz-cloudfunctions-id": "publishing-catchup",
+    "goog-managed-by": "cloudfunctions",
+    "instanceId": "001477829696989221cfb7c7a3554c9387d03c03c40e0b5247a01cf4f0624994005eb15489c51998c1d475b5cf92020cd1278ee092624498a10f64345739915c1c92e3c3442eb6f4049b878be897dbb45315",
+    "python_logger": "src.functions.catchup",
+    "run.googleapis.com/base_image_versions": "us-docker.pkg.dev/serverless-runtimes/google-22-full/runtimes/python311:python311_20251109_3_11_14_RC00",
+    "goog-drz-cloudfunctions-location": "us-central1"
+  },
+  "logName": "projects/backcountry-ski-activity-feed/logs/run.googleapis.com%2Fstdout",
+  "trace": "projects/backcountry-ski-activity-feed/traces/f764d1fa8789fa637f1e99fcdd41c0f7",
+  "sourceLocation": {
+    "file": "/workspace/src/functions/catchup.py",
+    "line": "65",
+    "function": "publishing_catchup_handler"
+  },
+  "receiveTimestamp": "2025-11-20T04:30:06.292033458Z",
+  "spanId": "fde24493b6c518a1",
+  "traceSampled": true,
+  "errorGroups": [
+    {
+      "id": "CP648IqSzsLWdg"
+    }
+  ]
+}
+```

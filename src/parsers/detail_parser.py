@@ -111,6 +111,8 @@ def extract_activity_date(tree) -> datetime:
     # We only care about the start date
     if "—" in date_str:
         date_str = date_str.split("—")[0].strip()
+    elif "-" in date_str:
+        date_str = date_str.split("-")[0].strip()
 
     # Parse the date (assumes Pacific time)
     pacific = pytz.timezone('America/Los_Angeles')
