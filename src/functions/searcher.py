@@ -8,6 +8,7 @@ from ..db import activity_exists
 from ..http_client import fetch_search_results
 from ..parsers import parse_search_results
 from ..tasks import enqueue_scrape_task, enqueue_search_task
+from ..config import is_processing_enabled
 
 
 logger = logging.getLogger(__name__)
@@ -44,6 +45,14 @@ def searcher_handler(start_index: int = 0, activity_type: str = 'Backcountry Ski
         True
     """
     try:
+        # Check if processing is enabled
+        if not is_processing_enabled():
+            logger.info("Processing is disabled, skipping search task")
+            return {
+                'status': 'skipped',
+                'reason': 'Processing is currently disabled',
+            }
+
         logger.info(f"Searching for {activity_type} activities starting at index {start_index}")
 
         # Fetch search results
