@@ -4,7 +4,7 @@ import logging
 from typing import Dict, Any
 from datetime import datetime, timezone
 
-from ..db import activity_exists
+from ..db import activity_exists, update_search_status
 from ..http_client import fetch_search_results
 from ..parsers import parse_search_results
 from ..tasks import enqueue_scrape_task, enqueue_search_task
@@ -67,21 +67,21 @@ def searcher_handler(start_index: int = 0, activity_type: str = 'Backcountry Ski
         # Enqueue scraper tasks for each NEW activity
         new_activities_count = 0
         for url in activity_urls:
+            # Extract activity ID from URL
+            activity_id = url.rstrip('/').split('/')[-1]
+
+            # Check if activity already exists
+            if activity_exists(activity_id):
+                logger.debug(f"Activity {activity_id} already exists, skipping")
+                continue
+
+            # Enqueue scraper task for new activity
             try:
-                # Extract document ID from URL (final path segment)
-                # e.g. https://www.mountaineers.org/activities/activities/backcountry-ski-snowboard-snoqualmie-summit-west-2-2026-02-10
-                doc_id = url.rstrip('/').split('/')[-1]
-
-                if activity_exists(doc_id):
-                    logger.debug(f"Activity {doc_id} already exists, skipping scrape")
-                    continue
-
                 enqueue_scrape_task(url)
                 logger.debug(f"Enqueued scraper task for: {url}")
                 new_activities_count += 1
             except Exception as e:
                 logger.error(f"Failed to enqueue scraper task for {url}: {e}")
-                # Continue with other URLs even if one fails
 
         logger.info(f"Enqueued {new_activities_count} new activities for scraping")
 
@@ -95,7 +95,8 @@ def searcher_handler(start_index: int = 0, activity_type: str = 'Backcountry Ski
             except Exception as e:
                 logger.error(f"Failed to enqueue next search task: {e}")
 
-
+        # Update bookkeeping status
+        update_search_status("Green", success=True)
 
         return {
             'status': 'success',
@@ -108,6 +109,7 @@ def searcher_handler(start_index: int = 0, activity_type: str = 'Backcountry Ski
 
         # Update bookkeeping status
         error_message = str(e)
+        update_search_status(f"Red: {error_message}")
 
         return {
             'status': 'error',

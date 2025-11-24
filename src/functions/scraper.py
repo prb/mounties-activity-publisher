@@ -12,6 +12,7 @@ from ..db import (
     create_or_update_leader,
     create_or_update_place,
     get_transaction,
+    update_scrape_status,
 )
 from ..tasks import enqueue_publish_task
 from ..config import is_processing_enabled
@@ -67,13 +68,14 @@ def scraper_handler(activity_url: str = None) -> Dict[str, Any]:
 
         logger.info(f"Scraping activity: {activity_url}")
 
-        # Parse URL to get document ID
+        # Extract document ID from URL (final path segment)
         activity_id = activity_url.rstrip('/').split('/')[-1]
 
         # Check if activity already exists
         if activity_exists(activity_id):
-            logger.info(f"Activity {activity_id} already exists, skipping")
+            logger.info(f"Activity {activity_id} already exists, skipping scrape")
             # Still consider this a success for bookkeeping purposes
+            update_scrape_status("Green", success=True)
             return {
                 'status': 'skipped',
                 'activity_id': activity_id,
@@ -88,56 +90,27 @@ def scraper_handler(activity_url: str = None) -> Dict[str, Any]:
 
         logger.info(f"Parsed activity: {activity.title}")
 
-        # Create/update leader in Firestore
-        leader_ref = create_or_update_leader(activity.leader)
-        logger.debug(f"Created/updated leader: {leader_ref.id}")
+        # Create/update leader and place documents
+        leader_id = create_or_update_leader(activity.leader)
+        place_id = create_or_update_place(activity.place)
 
-        # Create/update place in Firestore
-        place_ref = create_or_update_place(activity.place)
-        logger.debug(f"Created/updated place: {place_ref.id}")
+        # Create activity document
+        activity_ref = create_activity(activity)
+        result_activity_id = activity_ref.id
 
-        # Create activity in Firestore using a transaction
-        from google.cloud import firestore
+        logger.info(f"Successfully created activity {result_activity_id}")
 
-        @firestore.transactional
-        def create_activity_transactional(transaction, activity_obj):
-            return create_activity(activity_obj, transaction=transaction)
-
-        transaction = get_transaction()
+        # Enqueue publish task
         try:
-            activity_ref = create_activity_transactional(transaction, activity)
-            logger.info(f"Created activity: {activity_ref.id}")
-            
-            # Enqueue publish task
-            try:
-                enqueue_publish_task(activity_ref.id)
-                logger.info(f"Enqueued publish task for: {activity_ref.id}")
-            except Exception as e:
-                logger.error(f"Failed to enqueue publish task: {e}")
-                # Don't fail the scraper if publish enqueueing fails
-                # The activity is already in Firestore
+            enqueue_publish_task(result_activity_id)
+            logger.info(f"Enqueued publish task for activity {result_activity_id}")
+        except Exception as e:
+            logger.error(f"Failed to enqueue publish task: {e}")
+            # Continue - activity is created, publish can be retried via catchup
 
-            status = 'success'
-            result_activity_id = activity_ref.id
+        # Update bookkeeping status
+        update_scrape_status("Green", success=True)
 
-        except ValueError as e:
-            # This catches the "Activity already exists" error raised by create_activity
-            if "already exists" in str(e):
-                logger.info(f"Activity {activity.document_id} already exists (race condition handled), skipping")
-                status = 'skipped'
-                result_activity_id = activity.document_id
-            else:
-                raise e
-
-
-
-        if status == 'skipped':
-            return {
-                'status': 'skipped',
-                'activity_id': result_activity_id,
-                'reason': 'Activity already exists in Firestore',
-            }
-        
         return {
             'status': 'success',
             'activity_id': result_activity_id,
@@ -148,6 +121,7 @@ def scraper_handler(activity_url: str = None) -> Dict[str, Any]:
 
         # Update bookkeeping status
         error_message = str(e)
+        update_scrape_status(f"Red: {error_message}")
 
         return {
             'status': 'error',
