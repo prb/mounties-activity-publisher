@@ -64,7 +64,7 @@ def fetch_search_results(start_index: int = 0, activity_type: str = 'Backcountry
     """
     from urllib.parse import urlencode
 
-    base_url = 'https://www.mountaineers.org/activities/activities/@@faceted_query'
+    base_url = 'https://www.mountaineers.org/search/@@faceted_query'
 
     # Build query parameters
     params = {
