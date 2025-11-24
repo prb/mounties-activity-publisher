@@ -283,6 +283,84 @@ publishing_catchup = gcp.cloudfunctionsv2.Function("publishing-catchup",
     )
 )
 
+# Pause Processing Function
+pause_processing = gcp.cloudfunctionsv2.Function("pause-processing",
+    location=region,
+    name="pause-processing",
+    build_config=gcp.cloudfunctionsv2.FunctionBuildConfigArgs(
+        runtime="python311",
+        entry_point="pause_processing",
+        source=gcp.cloudfunctionsv2.FunctionBuildConfigSourceArgs(
+            storage_source=gcp.cloudfunctionsv2.FunctionBuildConfigSourceStorageSourceArgs(
+                bucket=source_bucket.name,
+                object=source_object.name,
+            )
+        )
+    ),
+    service_config=gcp.cloudfunctionsv2.FunctionServiceConfigArgs(
+        max_instance_count=1,
+        available_memory="256M",
+        timeout_seconds=60,
+        environment_variables={
+            "GCP_PROJECT": project,
+            "GCP_LOCATION": region,
+            "DEPLOY_ENV": deploy_env,
+        }
+    )
+)
+
+# Resume Processing Function
+resume_processing = gcp.cloudfunctionsv2.Function("resume-processing",
+    location=region,
+    name="resume-processing",
+    build_config=gcp.cloudfunctionsv2.FunctionBuildConfigArgs(
+        runtime="python311",
+        entry_point="resume_processing",
+        source=gcp.cloudfunctionsv2.FunctionBuildConfigSourceArgs(
+            storage_source=gcp.cloudfunctionsv2.FunctionBuildConfigSourceStorageSourceArgs(
+                bucket=source_bucket.name,
+                object=source_object.name,
+            )
+        )
+    ),
+    service_config=gcp.cloudfunctionsv2.FunctionServiceConfigArgs(
+        max_instance_count=1,
+        available_memory="256M",
+        timeout_seconds=60,
+        environment_variables={
+            "GCP_PROJECT": project,
+            "GCP_LOCATION": region,
+            "DEPLOY_ENV": deploy_env,
+        }
+    )
+)
+
+# Drain Queues Function
+drain_queues = gcp.cloudfunctionsv2.Function("drain-queues",
+    location=region,
+    name="drain-queues",
+    build_config=gcp.cloudfunctionsv2.FunctionBuildConfigArgs(
+        runtime="python311",
+        entry_point="drain_queues",
+        source=gcp.cloudfunctionsv2.FunctionBuildConfigSourceArgs(
+            storage_source=gcp.cloudfunctionsv2.FunctionBuildConfigSourceStorageSourceArgs(
+                bucket=source_bucket.name,
+                object=source_object.name,
+            )
+        )
+    ),
+    service_config=gcp.cloudfunctionsv2.FunctionServiceConfigArgs(
+        max_instance_count=1,
+        available_memory="256M",
+        timeout_seconds=60,
+        environment_variables={
+            "GCP_PROJECT": project,
+            "GCP_LOCATION": region,
+            "DEPLOY_ENV": deploy_env,
+        }
+    )
+)
+
 # 7. IAM Bindings
 
 # Grant Cloud Run Invoker to Scheduler SA for each function
