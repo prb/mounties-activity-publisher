@@ -83,6 +83,12 @@ error_log_policy = gcp.monitoring.AlertPolicy("error-log-policy",
 #     type="FIRESTORE_NATIVE",
 #     opts=pulumi.ResourceOptions(protect=True)) # Protect database from deletion
 
+# Initialize system configuration document
+# This ensures the processing_enabled flag exists with a default value
+# Note: Firestore documents are created via the Firestore API, not Pulumi resources
+# This would typically be done via a deployment script or the first time the functions run
+# The config.py module has fail-open behavior (defaults to True if not set)
+
 # 3. Service Accounts
 scheduler_sa = gcp.serviceaccount.Account("scheduler-invoker",
     account_id="scheduler-invoker",
