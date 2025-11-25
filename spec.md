@@ -203,7 +203,7 @@ would have the document ID `ski-resorts-nordic-centers_snoqualmie-summit-ski-are
 Places should remain in the cache until deleted.
 
 ### Bookkeeping Collection
-The `bookkeeping` collection contains a single document with the following fields:
+The `bookkeeping` collection contains a single document with the ID `status` and the following fields:
 
 - `last_search_success` (date and time): completion date and time for the last successful search function completion.
 - `search_status` (text string): status of the last search function execution.
