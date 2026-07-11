@@ -32,9 +32,13 @@ def create_activity(activity: Activity, transaction=None) -> DocumentReference:
     doc_id = activity.document_id
     doc_ref = db.collection(COLLECTION_NAME).document(doc_id)
 
-    # Create references to leader and place
+    # Create references to leader and (optionally) place. Single-pass listing
+    # activities have no linkable place, only a plain-text place_name.
     leader_ref = db.collection('leaders').document(activity.leader.document_id)
-    place_ref = db.collection('places').document(activity.place.document_id)
+    place_ref = (
+        db.collection('places').document(activity.place.document_id)
+        if activity.place is not None else None
+    )
 
     # Build data dict
     # Note: discord_message_id is kept even when None so we can query for unpublished activities
@@ -46,6 +50,7 @@ def create_activity(activity: Activity, transaction=None) -> DocumentReference:
         'activity_date': activity.activity_date,
         'leader_ref': leader_ref,
         'place_ref': place_ref,
+        'place_name': activity.place_name,
         'activity_type': activity.activity_type,
         'branch': activity.branch,
         'discord_message_id': activity.discord_message_id,  # Always include, even if None
@@ -86,9 +91,12 @@ def update_activity(activity: Activity) -> DocumentReference:
     if not activity_exists(doc_id):
         raise ValueError(f"Activity {doc_id} does not exist")
 
-    # Create references to leader and place
+    # Create references to leader and (optionally) place.
     leader_ref = db.collection('leaders').document(activity.leader.document_id)
-    place_ref = db.collection('places').document(activity.place.document_id)
+    place_ref = (
+        db.collection('places').document(activity.place.document_id)
+        if activity.place is not None else None
+    )
 
     doc_ref = db.collection(COLLECTION_NAME).document(doc_id)
 
@@ -101,6 +109,7 @@ def update_activity(activity: Activity) -> DocumentReference:
         'activity_date': activity.activity_date,
         'leader_ref': leader_ref,
         'place_ref': place_ref,
+        'place_name': activity.place_name,
         'activity_type': activity.activity_type,
         'branch': activity.branch,
         'discord_message_id': activity.discord_message_id,
@@ -137,16 +146,22 @@ def get_activity(document_id: str) -> Optional[Activity]:
 
     data = doc.to_dict()
 
-    # Fetch referenced leader and place
+    # Fetch referenced leader (required).
     leader_ref = data['leader_ref']
-    place_ref = data['place_ref']
-
     leader = get_leader(leader_ref.id)
-    place = get_place(place_ref.id)
+    if not leader:
+        # Referenced document missing - should not happen
+        raise ValueError(f"Activity {document_id} has missing leader reference")
 
-    if not leader or not place:
-        # Referenced documents missing - should not happen
-        raise ValueError(f"Activity {document_id} has missing leader or place reference")
+    # Place is optional: single-pass listing activities have no place_ref, only
+    # a plain-text place_name.
+    place = None
+    place_ref = data.get('place_ref')
+    if place_ref is not None:
+        place = get_place(place_ref.id)
+        if not place:
+            # Referenced document missing - should not happen
+            raise ValueError(f"Activity {document_id} has missing place reference")
 
     return Activity(
         activity_permalink=data['activity_permalink'],
@@ -156,6 +171,7 @@ def get_activity(document_id: str) -> Optional[Activity]:
         activity_date=data['activity_date'],
         leader=leader,
         place=place,
+        place_name=data.get('place_name'),
         activity_type=data.get('activity_type'),
         branch=data.get('branch'),
         discord_message_id=data.get('discord_message_id'),

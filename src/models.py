@@ -48,8 +48,12 @@ class Activity:
     description: str
     difficulty_rating: list[str]
     activity_date: datetime  # stored in UTC
-    place: Place
     leader: Leader
+    # place (with a linkable permalink) is only available from the detail page,
+    # which is Cloudflare-protected. Single-pass listing activities instead carry
+    # place_name (plain text, parsed from the title) with place left as None.
+    place: Optional[Place] = None
+    place_name: Optional[str] = None
     activity_type: Optional[str] = None
     branch: Optional[str] = None
     discord_message_id: Optional[str] = None

@@ -18,8 +18,8 @@ cloud "Cloud Scheduler\n(search: hourly)" as search_scheduler CLOUD
 cloud "Cloud Scheduler\n(catchup: :30)" as catchup_scheduler CLOUD
 
 ' Cloud Functions
-component "Searcher\nFunction" as searcher FUNCTION
-component "Scraper\nFunction" as scraper FUNCTION
+component "Searcher\nFunction\n(single-pass)" as searcher FUNCTION
+component "Scraper\nFunction\n(DORMANT)" as scraper FUNCTION
 component "Publisher\nFunction" as publisher FUNCTION
 component "Publishing Catchup\nFunction" as catchup FUNCTION
 component "Pause Processing\nFunction" as pause FUNCTION
@@ -28,7 +28,7 @@ component "Drain Queues\nFunction" as drain FUNCTION
 
 ' Cloud Tasks Queues
 queue "search-queue\n10/min" as search_queue QUEUE
-queue "scrape-queue\n30/min" as scrape_queue QUEUE
+queue "scrape-queue\n30/min\n(DORMANT)" as scrape_queue QUEUE
 queue "publish-queue\n5/min" as publish_queue QUEUE
 
 ' Storage
@@ -43,18 +43,19 @@ database "Firestore\nCollections" as firestore STORAGE {
 ' Secret Manager
 storage "Secret Manager\ndiscord-bot-token" as secrets STORAGE
 
-' Flow - Search path
+' Flow - Search path (single-pass, issue #31)
 search_scheduler --> searcher : trigger hourly
-searcher --> mountaineers : GET search results
+searcher --> mountaineers : GET approved listing\n(bypass header + cache-bust)
 searcher --> search_queue : enqueue next page
-searcher --> firestore : update bookkeeping
+searcher --> firestore : store activity,\nleader, bookkeeping
 search_queue --> searcher
+searcher --> publish_queue : enqueue activity ID
 
-searcher --> scrape_queue : enqueue detail URLs
-scrape_queue --> scraper : process
-scraper --> mountaineers : GET activity detail
-scraper --> firestore : store activity,\nleader, place,\nbookkeeping
-scraper --> publish_queue : enqueue activity ID
+' Dormant fallback path (detail pages Cloudflare-protected)
+scrape_queue ..> scraper : (dormant)
+scraper ..> mountaineers : GET activity detail
+scraper ..> firestore : store activity,\nleader, place
+scraper ..> publish_queue : enqueue activity ID
 
 ' Flow - Publishing path
 publish_queue --> publisher : process

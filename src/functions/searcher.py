@@ -1,29 +1,45 @@
-"""Searcher Cloud Function - fetches search results and enqueues scraper tasks."""
+"""Searcher Cloud Function - single-pass listing scrape and publish enqueue.
+
+Detail pages remain Cloudflare-protected, so the searcher builds each Activity
+directly from the approved listing page (single-pass) and enqueues a publish
+task for every new activity. The detail scraper (``scraper.py`` / ``scrape-queue``)
+is kept dormant as a fallback / manual-reprocessing path. See issue #31.
+"""
 
 import logging
 from typing import Dict, Any
-from datetime import datetime, timezone
 
-from ..db import activity_exists, update_search_status
+from ..db import (
+    activity_exists,
+    create_activity,
+    create_or_update_leader,
+    create_or_update_place,
+    update_search_status,
+)
 from ..http_client import fetch_search_results
-from ..parsers import parse_search_results
-from ..tasks import enqueue_scrape_task, enqueue_search_task
+from ..parsers import parse_activity_listing
+from ..tasks import enqueue_publish_task, enqueue_search_task
 from ..config import is_processing_enabled
 
 
 logger = logging.getLogger(__name__)
 
+# Listing page size; pagination advances b_start by this amount.
+PAGE_SIZE = 20
+
 
 def searcher_handler(start_index: int = 0, activity_type: str = 'Backcountry Skiing') -> Dict[str, Any]:
     """
-    Handle a search task - fetch search results and enqueue scraper tasks.
+    Handle a search task - fetch the listing, store new activities, and enqueue
+    publish tasks.
 
     This function:
-    1. Fetches search results from the Mountaineers website
-    2. Extracts activity detail URLs
-    3. Checks if activity already exists in Firestore
-    4. Enqueues a scraper task for each NEW activity
-    5. If there's a next page, enqueues another search task
+    1. Fetches the approved listing page for the activity type / page.
+    2. Parses each result-item into a full Activity.
+    3. Skips activities that already exist in Firestore.
+    4. For each new activity: stores leader (+ place if present) and activity,
+       then enqueues a publish task.
+    5. If there's a next page, enqueues another search task.
 
     Args:
         start_index: Starting index for pagination.
@@ -31,18 +47,11 @@ def searcher_handler(start_index: int = 0, activity_type: str = 'Backcountry Ski
 
     Returns:
         Dict with:
-            - status: str - "success" or "error"
-            - activities_found: int - Number of activities found
-            - new_activities: int - Number of new activities enqueued
+            - status: str - "success", "skipped", or "error"
+            - activities_found: int - Number of activities parsed from the page
+            - new_activities: int - Number of new activities stored/enqueued
             - has_next_page: bool - Whether there's a next page
             - error: str (optional) - Error message if status is "error"
-
-    Example:
-        >>> result = searcher_handler(start_index=0)
-        >>> result['status']
-        'success'
-        >>> result['activities_found'] > 0
-        True
     """
     try:
         # Check if processing is enabled
@@ -55,43 +64,34 @@ def searcher_handler(start_index: int = 0, activity_type: str = 'Backcountry Ski
 
         logger.info(f"Searching for {activity_type} activities starting at index {start_index}")
 
-        # Fetch search results
+        # Fetch and parse the listing page
         html = fetch_search_results(start_index=start_index, activity_type=activity_type)
+        activities, next_page_url = parse_activity_listing(html)
 
-        # Parse search results
-        activity_urls, next_page_url = parse_search_results(html)
+        logger.info(f"Found {len(activities)} activities")
 
-
-        logger.info(f"Found {len(activity_urls)} activities")
-
-        # Enqueue scraper tasks for each NEW activity
         new_activities_count = 0
-        for url in activity_urls:
-            # Extract activity ID from URL
-            activity_id = url.rstrip('/').split('/')[-1]
+        for activity in activities:
+            activity_id = activity.document_id
 
-            # Check if activity already exists
+            # Skip activities we've already processed
             if activity_exists(activity_id):
                 logger.debug(f"Activity {activity_id} already exists, skipping")
                 continue
 
-            # Enqueue scraper task for new activity
             try:
-                enqueue_scrape_task(url)
-                logger.debug(f"Enqueued scraper task for: {url}")
+                _store_and_enqueue(activity)
                 new_activities_count += 1
             except Exception as e:
-                logger.error(f"Failed to enqueue scraper task for {url}: {e}")
+                logger.error(f"Failed to store/enqueue activity {activity_id}: {e}", exc_info=True)
 
-        logger.info(f"Enqueued {new_activities_count} new activities for scraping")
+        logger.info(f"Stored {new_activities_count} new activities")
 
         # If there's a next page, enqueue another search task
         if next_page_url:
-            logger.info(f"Next page found, enqueueing search task")
-            # Calculate next start index (increment by 20, the page size)
-            next_start_index = start_index + 20
+            logger.info("Next page found, enqueueing search task")
             try:
-                enqueue_search_task(next_start_index, activity_type)
+                enqueue_search_task(start_index + PAGE_SIZE, activity_type)
             except Exception as e:
                 logger.error(f"Failed to enqueue next search task: {e}")
 
@@ -100,7 +100,8 @@ def searcher_handler(start_index: int = 0, activity_type: str = 'Backcountry Ski
 
         return {
             'status': 'success',
-            'activities_found': len(activity_urls),
+            'activities_found': len(activities),
+            'new_activities': new_activities_count,
             'has_next_page': next_page_url is not None,
         }
 
@@ -115,3 +116,20 @@ def searcher_handler(start_index: int = 0, activity_type: str = 'Backcountry Ski
             'status': 'error',
             'error': error_message,
         }
+
+
+def _store_and_enqueue(activity) -> None:
+    """Store leader (+ place if present) and activity, then enqueue a publish
+    task. create_activity is idempotent, so a retry is safe."""
+    create_or_update_leader(activity.leader)
+    if activity.place is not None:
+        create_or_update_place(activity.place)
+
+    activity_ref = create_activity(activity)
+    activity_id = activity_ref.id
+    logger.info(f"Created activity {activity_id}")
+
+    # Enqueue publish task. If this fails, the activity is still stored and can
+    # be picked up by the catchup function.
+    enqueue_publish_task(activity_id)
+    logger.debug(f"Enqueued publish task for activity {activity_id}")

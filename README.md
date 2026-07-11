@@ -24,10 +24,16 @@ Built with **Google Cloud Functions (2nd gen)**, Cloud Tasks, and Firestore.
 ```
 Cloud Scheduler (every 60 min)
     ↓
-Searcher Function → Cloud Tasks → Scraper Function → Cloud Tasks → Publisher Function
-    ↓                                   ↓                              ↓
-Search Results                      Firestore                      Discord Channel
+Searcher Function → Cloud Tasks → Publisher Function
+    ↓                                  ↓
+Firestore                         Discord Channel
 ```
+
+The Mountaineers site is behind Cloudflare, and only an approved listing URL is
+reachable (with a bypass header); per-activity detail pages are not. The Searcher
+therefore runs **single-pass** — it builds each activity directly from the listing
+and enqueues a publish task. The Scraper function / `scrape-queue` are retained but
+**dormant** as a fallback. See [issue #31](https://github.com/prb/mounties-activity-publisher/issues/31).
 
 ## Quick Start
 
@@ -261,10 +267,11 @@ gcloud projects add-iam-policy-binding $GCP_PROJECT \
 3. Check publisher function logs: `gcloud functions logs read publisher --region=us-central1`
 4. Verify bot has "Send Messages" permission in Discord channel
 
-### Activities not being scraped
-1. Check searcher function logs
-2. Verify Cloud Tasks queues are processing: `gcloud tasks queues describe scrape-queue --location=us-central1`
-3. Check for Firestore permission errors
+### Activities not being published
+1. Check searcher function logs (the searcher is single-pass — it builds activities from the approved listing and enqueues publish tasks directly; see issue #31)
+2. Verify the search and publish queues are processing: `gcloud tasks queues describe search-queue --location=us-central1` and `gcloud tasks queues describe publish-queue --location=us-central1` (note: `scrape-queue` is dormant)
+3. Confirm the approved listing is reachable — a Cloudflare `403` means the `mtn-approved-scraper` header/`MTN_SCRAPER_HEADER_VALUE` is missing or wrong
+4. Check for Firestore permission errors
 
 See [PHASE5_README.md](PHASE5_README.md#troubleshooting) for detailed troubleshooting.
 

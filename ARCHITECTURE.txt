@@ -15,16 +15,29 @@
 └─────────────────────────────────────────────────────────────────────────────┘
 
 ┌─────────────────────────────────────────────────────────────────────────────┐
-│                            SEARCH PHASE                                     │
+│                   SEARCH PHASE (single-pass, issue #31)                     │
 │                                                                             │
 │  ┌──────────────────┐          ┌─────────────────┐                        │
 │  │   Mountaineers   │◄─────────│    Searcher     │                        │
-│  │     Website      │  GET     │    Function     │                        │
-│  │ (Search Results) │          └────────┬────────┘                        │
-│  └──────────────────┘                   │                                  │
+│  │  Approved URL    │  GET     │    Function     │                        │
+│  │  @@faceted_query │  (bypass └────────┬────────┘                        │
+│  │  (c4 facet)      │   header +        │                                  │
+│  └──────────────────┘  cache-bust)     │ store activity + leader,         │
 │                                          │ update status                    │
 │                            ┌─────────────▼──────────────┐                  │
 │                            │       Firestore            │                  │
+│                            │  ┌──────────────────────┐  │                  │
+│                            │  │ activities           │  │                  │
+│                            │  │   - title, date      │  │                  │
+│                            │  │   - activity_type    │  │                  │
+│                            │  │   - leader_ref       │  │                  │
+│                            │  │   - place_name       │  │                  │
+│                            │  │   - branch           │  │                  │
+│                            │  │   - discord_msg_id   │  │                  │
+│                            │  └──────────────────────┘  │                  │
+│                            │  ┌──────────────────────┐  │                  │
+│                            │  │ leaders              │  │                  │
+│                            │  └──────────────────────┘  │                  │
 │                            │  ┌──────────────────────┐  │                  │
 │                            │  │ bookkeeping          │  │                  │
 │                            │  │   - search_status    │  │                  │
@@ -35,51 +48,20 @@
 │                                          │ enqueue tasks                    │
 │                                          ▼                                  │
 │                         ┌─────────────────────────────┐                    │
-│                         │   search-queue (10/min)     │─┐ pagination       │
-│                         │   scrape-queue (30/min)     │ │                  │
-│                         └─────────────────────────────┘ │                  │
-│                                          │               │                  │
-│                                          └───────────────┘                  │
+│                         │  search-queue (10/min) ─┐    │ pagination        │
+│                         │  publish-queue (5/min)  │    │                   │
+│                         └─────────────────────────┼────┘                   │
+│                                          ▲        │                        │
+│                                          └────────┘ (next page)            │
 └─────────────────────────────────────────────────────────────────────────────┘
 
 ┌─────────────────────────────────────────────────────────────────────────────┐
-│                           SCRAPE PHASE                                      │
+│                    SCRAPE PHASE (DORMANT - issue #31)                       │
 │                                                                             │
-│  ┌──────────────────┐          ┌─────────────────┐                        │
-│  │   Mountaineers   │◄─────────│    Scraper      │                        │
-│  │     Website      │  GET     │    Function     │                        │
-│  │ (Activity Detail)│          └────────┬────────┘                        │
-│  └──────────────────┘                   │                                  │
-│                                          │ store                            │
-│                            ┌─────────────▼──────────────┐                  │
-│                            │       Firestore            │                  │
-│                            │  ┌──────────────────────┐  │                  │
-│                            │  │ activities           │  │                  │
-│                            │  │   - title            │  │                  │
-│                            │  │   - date             │  │                  │
-│                            │  │   - activity_type    │  │                  │
-│                            │  │   - leader_ref       │  │                  │
-│                            │  │   - place_ref        │  │                  │
-│                            │  │   - discord_msg_id   │  │                  │
-│                            │  └──────────────────────┘  │                  │
-│                            │  ┌──────────────────────┐  │                  │
-│                            │  │ leaders              │  │                  │
-│                            │  └──────────────────────┘  │                  │
-│                            │  ┌──────────────────────┐  │                  │
-│                            │  │ places               │  │                  │
-│                            │  └──────────────────────┘  │                  │
-│                            │  ┌──────────────────────┐  │                  │
-│                            │  │ bookkeeping          │  │                  │
-│                            │  │   - scrape_status    │  │                  │
-│                            │  │   - last_success     │  │                  │
-│                            │  └──────────────────────┘  │                  │
-│                            └─────────────────────────────┘                  │
-│                                          │                                  │
-│                                          │ enqueue task                     │
-│                                          ▼                                  │
-│                         ┌─────────────────────────────┐                    │
-│                         │  publish-queue (5/min)      │                    │
-│                         └─────────────────────────────┘                    │
+│  Detail pages remain Cloudflare-protected, so nothing enqueues scrape      │
+│  tasks. The Scraper function and scrape-queue (30/min) are retained as a    │
+│  fallback / manual-reprocessing path and, if detail pages become reachable  │
+│  again, populate a fully linkable place_ref (places collection).            │
 └─────────────────────────────────────────────────────────────────────────────┘
 
 ┌─────────────────────────────────────────────────────────────────────────────┐
@@ -157,19 +139,19 @@
 
   Cloud Functions:
     • searcher:           ~720 invocations/month   (512MB, 540s timeout)
-    • scraper:            ~10,000 invocations/month (512MB, 540s timeout)
+    • scraper:            DORMANT (issue #31; fallback only)
     • publisher:          ~10,000 invocations/month (256MB, 540s timeout)
     • publishing-catchup: ~720 invocations/month   (256MB, 540s timeout)
 
   Cloud Tasks Queues:
     • search-queue:  10 dispatches/min, 1 concurrent, 3 retries
-    • scrape-queue:  30 dispatches/min, 5 concurrent, 3 retries
+    • scrape-queue:  30 dispatches/min, 5 concurrent, 3 retries (DORMANT)
     • publish-queue: 5 dispatches/min, 1 concurrent, 3 retries
 
   Firestore Collections:
     • activities:   ~14 new documents per poll
     • leaders:      ~5-10 documents (deduplicated)
-    • places:       ~5-10 documents (deduplicated)
+    • places:       populated only by the dormant scraper path (issue #31)
     • bookkeeping:  1 document (status tracking)
 
   Total Cost: $0/month (within free tier limits)

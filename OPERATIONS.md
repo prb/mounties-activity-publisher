@@ -42,8 +42,8 @@ All Cloud Functions are deployed with IAM authentication required. To invoke the
 
 ### Deployed Functions
 
-- `searcher` - Search for new activities (triggered by Cloud Scheduler)
-- `scraper` - Scrape activity details (triggered by Cloud Tasks)
+- `searcher` - Single-pass: build activities from the approved listing and enqueue publish tasks (triggered by Cloud Scheduler). See issue #31.
+- `scraper` - **Dormant** (issue #31): detail pages are Cloudflare-protected, so nothing enqueues scrape tasks. Retained for fallback / manual reprocessing.
 - `publisher` - Publish to Discord (triggered by Cloud Tasks)
 - `publishing-catchup` - Retry failed publications (triggered by Cloud Scheduler)
 

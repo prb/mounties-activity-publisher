@@ -12,6 +12,9 @@ queue:
       max_backoff: 60s
       max_doublings: 3
 
+  # DORMANT (issue #31): the searcher is now single-pass and builds activities
+  # directly from the listing, so nothing enqueues scrape tasks. The scrape-queue
+  # and scraper function are retained as a fallback / manual-reprocessing path.
   - name: scrape-queue
     rate_limits:
       max_dispatches_per_second: 0.5  # ~30 requests per minute
