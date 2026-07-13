@@ -1,2 +1,6 @@
-pulumi>=3.0.0
-pulumi-gcp>=7.0.0
+# Pinned to avoid surprise major-version upgrades (issue #31). pulumi-gcp is
+# capped to the verified 9.x line; the pulumi SDK is capped to its 3.x major to
+# stay compatible with the CLI. Bump deliberately after reviewing a pulumi
+# preview for provider-driven diffs.
+pulumi>=3.0.0,<4.0.0
+pulumi-gcp>=9.29.0,<10.0.0
