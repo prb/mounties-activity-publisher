@@ -16,6 +16,9 @@ REGION="${GCP_REGION:-us-central1}"
 DISCORD_BOT_TOKEN_SECRET="${DISCORD_BOT_TOKEN_SECRET:-discord-bot-token}"
 DISCORD_CHANNEL_ID="${DISCORD_CHANNEL_ID:-your-channel-id}"
 DEPLOY_ENV="${DEPLOY_ENV:-prod}"
+# Cloudflare bypass header value for the approved scraping URL (issue #31).
+# Low-sensitivity config (published in the issue); overridable via env.
+MTN_SCRAPER_HEADER_VALUE="${MTN_SCRAPER_HEADER_VALUE:-MountaineersDevRequest}"
 SCHEDULER_SERVICE_ACCOUNT="scheduler-invoker@${PROJECT_ID}.iam.gserviceaccount.com"
 
 # Colors for output
@@ -135,7 +138,7 @@ gcloud functions deploy searcher \
     --entry-point=searcher \
     --trigger-http \
     --no-allow-unauthenticated \
-    --set-env-vars="GCP_PROJECT=$PROJECT_ID,GCP_LOCATION=$REGION,APP_VERSION=$GIT_SHA,DEPLOY_ENV=$DEPLOY_ENV" \
+    --set-env-vars="GCP_PROJECT=$PROJECT_ID,GCP_LOCATION=$REGION,APP_VERSION=$GIT_SHA,DEPLOY_ENV=$DEPLOY_ENV,MTN_SCRAPER_HEADER_VALUE=$MTN_SCRAPER_HEADER_VALUE" \
     --timeout=540s \
     --memory=512MB \
     --quiet

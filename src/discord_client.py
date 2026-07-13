@@ -152,8 +152,12 @@ def format_activity_message(activity: Activity) -> str:
 
     Format:
     📆 {{activity.activity_date in YYYY-MM-DD format in Pacific timezone}} {{emoji for activity.activity_type}} [{{activity.title}}]({{activity.activity_permalink}})
-    Leader: [{{activity.leader.name}}](<{{activity.leader.leader_permalink}}>) at [{{activity.place.name}}](<{{activity.place.place_permalink}}>)
+    Leader: [{{activity.leader.name}}](<{{activity.leader.leader_permalink}}>){{place clause}}
     Difficulty Ratings: {{comma-concatenated activity.difficulty_rating with optional emojis}}
+
+    The place clause is " at [{{place.name}}](<{{place.place_permalink}}>)" when a
+    linkable place is present, " at {{place_name}}" (plain text) for single-pass
+    listing activities, or omitted entirely when there is no place.
 
     Note: Using [text](<url>) prevents Discord from rendering link previews.
 
@@ -205,9 +209,19 @@ def format_activity_message(activity: Activity) -> str:
     # Format difficulty ratings with emojis
     difficulty_str = format_difficulty_ratings(activity.difficulty_rating)
 
+    # Format the place clause. A linkable place (from a detail-page scrape) is
+    # rendered as a hyperlink; a single-pass listing activity carries only a
+    # plain-text place_name; some activities have no place at all.
+    if activity.place is not None:
+        place_clause = f" at [{activity.place.name}](<{activity.place.place_permalink}>)"
+    elif activity.place_name:
+        place_clause = f" at {activity.place_name}"
+    else:
+        place_clause = ""
+
     # Format multi-line message
     line1 = f"📆 {date_str}{activity_emoji_str} [{activity.title}]({activity.activity_permalink})"
-    line2 = f"Leader: [{activity.leader.name}](<{activity.leader.leader_permalink}>) at [{activity.place.name}](<{activity.place.place_permalink}>)"
+    line2 = f"Leader: [{activity.leader.name}](<{activity.leader.leader_permalink}>){place_clause}"
     line3 = f"Difficulty Ratings: {difficulty_str}"
 
     message = f"{line1}\n{line2}\n{line3}"

@@ -240,6 +240,43 @@ def test_get_activity(sample_activity):
     assert retrieved.place.document_id == "ski-resorts-nordic-centers_snoqualmie-summit-ski-areas"
 
 
+def test_create_and_get_placeless_activity(sample_leader):
+    """Single-pass activities have no place_ref, only a plain-text place_name.
+
+    Exercises the create write path (place_ref omitted) and the get_activity
+    read path (tolerates a missing place_ref) — the bug the issue #31 refined
+    plan called out, where the publisher would otherwise throw on placeless
+    activities.
+    """
+    create_or_update_leader(sample_leader)
+
+    activity = Activity(
+        activity_permalink="https://www.mountaineers.org/activities/activities/full-moon-ski-2026-03-01",
+        title="Full Moon Ski - Snoqualmie Summit West",
+        description="Single-pass listing activity.",
+        difficulty_rating=["M1 Intermediate Ski"],
+        activity_date=datetime(2026, 3, 1, 8, 0, 0, tzinfo=pytz.UTC),
+        leader=sample_leader,
+        place=None,
+        place_name="Snoqualmie Summit West",
+        activity_type="Backcountry Skiing",
+        branch="Foothills Branch",
+    )
+
+    create_activity(activity)
+
+    retrieved = get_activity("full-moon-ski-2026-03-01")
+
+    assert retrieved is not None
+    # No linkable place, but the plain-text name round-trips.
+    assert retrieved.place is None
+    assert retrieved.place_name == "Snoqualmie Summit West"
+    assert retrieved.branch == "Foothills Branch"
+    # Leader still populated.
+    assert retrieved.leader.name == "Randy Oakley"
+    assert retrieved.leader.document_id == "randolph-oakley"
+
+
 def test_get_nonexistent_activity():
     """Test retrieving a nonexistent activity."""
     retrieved = get_activity("nonexistent")

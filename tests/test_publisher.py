@@ -68,6 +68,46 @@ def test_format_activity_message(sample_activity):
     assert 'Difficulty Ratings: 🟢 M1 Intermediate Ski' in message
 
 
+def test_format_activity_message_plain_text_place(sample_leader):
+    """Single-pass activities render place_name as plain text (no link)."""
+    activity = Activity(
+        activity_permalink="https://www.mountaineers.org/activities/activities/x-2026-02-10",
+        title="Backcountry Ski/Snowboard - Snoqualmie Summit West",
+        description="desc",
+        difficulty_rating=["M1 Intermediate Ski"],
+        activity_date=datetime(2026, 2, 10, 8, 0, 0, tzinfo=pytz.UTC),
+        leader=sample_leader,
+        place=None,
+        place_name="Snoqualmie Summit West",
+    )
+
+    message = format_activity_message(activity)
+
+    assert 'Leader: [Randy Oakley](<https://www.mountaineers.org/members/randy-oakley>) at Snoqualmie Summit West' in message
+    # No markdown link for the place.
+    assert 'at [Snoqualmie Summit West]' not in message
+
+
+def test_format_activity_message_no_place(sample_leader):
+    """Activities with neither place nor place_name omit the 'at ...' clause."""
+    activity = Activity(
+        activity_permalink="https://www.mountaineers.org/activities/activities/x-2026-02-10",
+        title="Full Moon Ski",
+        description="desc",
+        difficulty_rating=["M1 Intermediate Ski"],
+        activity_date=datetime(2026, 2, 10, 8, 0, 0, tzinfo=pytz.UTC),
+        leader=sample_leader,
+        place=None,
+        place_name=None,
+    )
+
+    message = format_activity_message(activity)
+
+    lines = message.split('\n')
+    assert lines[1] == 'Leader: [Randy Oakley](<https://www.mountaineers.org/members/randy-oakley>)'
+    assert ' at ' not in lines[1]
+
+
 def test_format_activity_message_date_conversion():
     """Test that UTC date is correctly converted to Pacific time."""
     leader = Leader(

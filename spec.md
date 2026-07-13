@@ -130,6 +130,7 @@ The following configuration information will be stored:
   - Secret name format: `discord-bot-token` (or `{env}-discord-bot-token` for multi-env in same project)
 - The *Discord Channel ID* will be passed as an environment variable to the publisher function.
   - Different channels should be used for different environments (dev vs prod)
+- The *Mountaineers scraper bypass header value* will be passed to the searcher function as the `MTN_SCRAPER_HEADER_VALUE` environment variable (issue #31). It is low-sensitivity config (published in the issue) with a sensible default; it must never be logged.
 
 ### Scheduling, Retries, Backoff, and Catchup
 
@@ -156,7 +157,8 @@ The persistent cache will contain an `activities` collection.  Each `activity` d
 - `description` (text string): A brief description of the activity.
 - `difficulty_rating` (array): The difficulty rating of the activity.
 - `activity_date` (date and time): The date of the activity, stored in UTC.
-- `place_ref` (reference): A reference to a document in the `places` collection.
+- `place_ref` (reference, optional): A reference to a document in the `places` collection. Only present for detail-page (dormant scraper) activities; single-pass listing activities omit it (see `place_name`).
+- `place_name` (text string, optional): The plain-text route/place name recovered from the title, used by single-pass listing activities that have no linkable `place_ref`.
 - `url` (text string): The URL of the activity detail page.
 - `branch` (text string): The sponsoring branch for the activity.
 - `leader_ref` (reference): A reference to a document in the `leaders` collection.
@@ -244,9 +246,15 @@ The `content` of the request should be based on the `activity`, `leader`, and `p
 
 ```
 📆 {{activity.activity_date in YYYY-MM-DD format in Pacific timezone}} {{emoji for activity.activity_type}} [{{activity.title}}]({{activity.activity_permalink}})
-Leader: [{{activity.leader.name}}](<{{activity.leader.leader_permalink}}>) at [{{activity.place.name}}](<{{activity.place.place_permalink}}>)
+Leader: [{{activity.leader.name}}](<{{activity.leader.leader_permalink}}>){{place clause}}
 Difficulty Ratings: {{comma-concatenated activity.difficulty_rating with optional emojis}}
 ```
+
+The **place clause** depends on what place data the activity has (see the single-pass note below):
+
+- A linkable `place` (from a detail-page scrape): ` at [{{activity.place.name}}](<{{activity.place.place_permalink}}>)`
+- Only a `place_name` (single-pass listing activity): ` at {{activity.place_name}}` (plain text, no link)
+- Neither: the clause is omitted entirely.
 
 (Note that the syntax `[anchor text](<url>)` is used to create a hyperlink that does not render a preview in the channel.)
 
@@ -270,33 +278,85 @@ This cloud function should query the `activities` collection for documents witho
 
 ## Mountaineers Website Search API, Polling, and Scraping
 
+> **Cloudflare scraper protection (issue #31).** The Mountaineers implemented
+> Cloudflare protection and provided a single **approved** listing URL that can be
+> accessed with a custom bypass header. Only the approved listing path (and its
+> `@@faceted_query` child) is bypassed — **per-activity detail pages remain
+> protected and are no longer reachable**. The pipeline is therefore
+> **single-pass**: the *Searcher Function* builds each `activity` directly from the
+> listing's `result-item` markup and dispatches a *Publisher* task itself. The
+> *Detail Scraper Function* is retained but **dormant** (fallback / manual
+> reprocessing).
+
 ### Search API
-The activities search endpoint from the Mountaineers website presents a single `GET` endpoint as follows:
+The approved listing page is a JS shell whose results load via an AJAX
+`@@faceted_query` endpoint:
 
 ```
-https://www.mountaineers.org/search/@@faceted_query?b_start:int=[start_index]&c8%5B%5D=[type]&type%5B%5D=mtneers.activity
+https://www.mountaineers.org/volunteer/volunteer-with-us/find-all-volunteer-activities/@@faceted_query?c4[]=[type]&b_start:int=[start_index]
 ```
 
-The `[start_index]` parameter is a zero-based record number to start the page of results at; pages are of length up to 20, with a page of fewer than 20 records indicating the end of the results.  The `[type]` parameter is one of the following activity types:
+Requirements for every request to this URL (and its paginated variants):
+
+- Send the header `mtn-approved-scraper: <value>`, where `<value>` comes from the
+  `MTN_SCRAPER_HEADER_VALUE` environment variable (low-sensitivity config with a
+  sensible default; never logged).
+  Without it, Cloudflare returns a `403 "Just a moment…"` challenge.
+- Send `Cache-Control: no-cache` **and** append a unique cache-buster query param
+  (e.g. `&_cb=<uuid>`). Responses are served through Varnish and a stale, often
+  empty, page is otherwise returned after a new activity is listed.
+- The retained `User-Agent` header is still sent.
+
+The activity-type facet on this page is `c4` (note: **not** `c8`, which the old
+global-search endpoint used) and its value uses spaces (e.g.
+`c4[]=Backcountry Skiing`). The `[start_index]` parameter is a zero-based record
+number; pages hold up to 20 records, and a `//nav[@class='pagination']//li[@class='next']/a/@href`
+link (already a `@@faceted_query` URL) or a page of fewer than 20 records indicates
+the end of results. The `[type]` parameter is one of the following activity types:
 
 - `Backcountry Skiing`
 
-Parameters should be encoded according to `application/x-www-form-urlencoded`.
+### Searcher Function: Single-Pass Listing Extraction
+The *Searcher Function* performs a search against the approved endpoint, builds a
+full `activity` (plus `leader`) from each `result-item`, stores new ones, and
+dispatches a *Publisher* task for each. Detail pages are not fetched.
 
-### Searcher Function: Activity Detail URLs from Search Results
-The *Searcher Function* is responsible for performing a search against the endpoint, extracting a list of activity detail URLs, and dispatching a *Detail Scraper* task for each new one.
+The endpoint returns an HTML document containing a list of activities. The
+documents [sample_faceted_query_response.html](tests/fixtures/sample_faceted_query_response.html),
+[sample_activity_search_response.html](tests/fixtures/sample_activity_search_response.html),
+and [sample_activity_search_response_1.html](tests/fixtures/sample_activity_search_response_1.html)
+contain example responses. Using XPath, each `//div[contains(@class,'result-item')]`
+element is a result; only rows whose permalink is under `/activities/activities/`
+are activities (the folder can also contain routes/places), and the following are
+extracted **relative to the item**:
 
-The search endpoint returns an HTML document containing a list of activities.  The document [sample_activity_search_response.html](tests/fixtures/sample_activity_search_response.html) contains an example response with no successive page of results, and the document [sample_activity_search_response_1.html](tests/fixtures/sample_activity_search_response_1.html) contains an example response with a successive page of results.
+- `.//h3[@class='result-title']/a/@href` — `activity_permalink` (the `document_id` is its final path segment).
+- `.//h3[@class='result-title']/a/text()` — `title`.
+- `.//div[@class='result-type']/text()` — `activity_type`; a trailing ` Trip` is stripped (e.g. "Backcountry Skiing Trip" → "Backcountry Skiing").
+- `.//div[@class='result-summary']/text()` — `description`.
+- `.//div[@class='result-difficulty']/text()` — `difficulty_rating` (strip the "Difficulty:" prefix; split on commas; normalize whitespace).
+- `.//div[@class='result-date']/text()` — `activity_date` (`%a, %b %d, %Y`; collapse internal whitespace first, since single-digit days render with a double space; for multi-day ranges use the start date; Pacific → UTC).
+- `.//div[@class='result-branch']/text()` — `branch`.
+- `.//div[@class='result-leader']//a/text()` and `.../@href` — `leader.name` and `leader.leader_permalink` (a direct `/members/<slug>`).
 
-Using XPath notation, each `//div[@class='result-item']` element in the response contains an activity.  Within an item, `.//h3[@class='result-title']/a/@href` is the URL of the activity detail page.
+The route/place **permalink** is only on the (unreachable) detail page, so `place`
+is left unset; the place **name** is recovered from the title (text after the first
+` - `) and stored as `place_name` (plain text). Rows missing a leader or a parseable
+date are skipped defensively.
 
 (*Pro Tip:* For validation of XPath expressions at the commandline, `xmllint --xpath` is super useful.)
 
-The Searcher Function should check the `activities` collection for a corresponding activity and enqueue one Detail Scraper task for each new activity detail URL.
+The Searcher Function checks the `activities` collection for each `document_id` and,
+for each new activity, creates the `leader` and `activity` documents and enqueues a
+*Publisher* task. If the response contains a next-page link, it enqueues a Searcher
+task for `start_index + 20`.
 
-In addition, if the search response contains `//nav[@class='pagination']//li[@class='next']/a/@href`, enqueue a Searcher task for that next page.
+### Detail Scraper Function: Data Binding and Extraction from Detail Pages (dormant)
+> **Dormant (issue #31).** Detail pages are Cloudflare-protected, so nothing
+> enqueues *Detail Scraper* tasks. The function and `scrape-queue` are retained as
+> a fallback / manual-reprocessing path and still produce a fully linkable `place`
+> if detail pages ever become reachable again.
 
-### Detail Scraper Function: Data Binding and Extraction from Detail Pages
 The *Detail Scraper Function* is responsible for extracting data from the activity detail page and binding it to the `activity` document, `leader` document, and `place` document, as necessary.  The URL passed into the function is the `activity_permalink`.
 
 The activity detail endpoint returns an HTML document with details of the activity.  The document [sample_activity_detail.html](tests/fixtures/sample_activity_detail.html) contains an example response.  Using XPath notation:

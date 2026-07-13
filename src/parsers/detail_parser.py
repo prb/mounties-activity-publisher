@@ -2,10 +2,9 @@
 
 from datetime import datetime
 from lxml import html
-import pytz
-from dateutil import parser as date_parser
 
 from ..models import Activity, Leader, Place
+from .helpers import parse_activity_date, parse_difficulty_rating
 
 
 def parse_activity_detail(html_content: str, activity_url: str) -> Activity:
@@ -105,24 +104,7 @@ def extract_activity_date(tree) -> datetime:
     if not date_nodes:
         raise ValueError("Could not find activity date")
 
-    date_str = date_nodes[0].strip()
-
-    # Handle multi-day activities (e.g. "Wed, Feb 11, 2026 — Thu, Feb 12, 2026")
-    # We only care about the start date
-    if "—" in date_str:
-        date_str = date_str.split("—")[0].strip()
-    elif "-" in date_str:
-        date_str = date_str.split("-")[0].strip()
-
-    # Parse the date (assumes Pacific time)
-    pacific = pytz.timezone('America/Los_Angeles')
-    naive_date = datetime.strptime(date_str, "%a, %b %d, %Y")
-
-    # Localize to Pacific time, then convert to UTC
-    pacific_date = pacific.localize(naive_date)
-    utc_date = pacific_date.astimezone(pytz.UTC)
-
-    return utc_date
+    return parse_activity_date(date_nodes[0])
 
 
 def extract_difficulty_rating(tree) -> list[str]:
@@ -137,18 +119,7 @@ def extract_difficulty_rating(tree) -> list[str]:
     if not text_nodes:
         return []
 
-    # Join all text nodes and strip
-    full_text = ''.join(text_nodes).strip()
-
-    # Remove "Difficulty:" prefix if present
-    if full_text.startswith("Difficulty:"):
-        full_text = full_text[len("Difficulty:"):].strip()
-
-    # Split by comma and clean each item
-    # Normalize whitespace: collapse sequences of whitespace to single spaces
-    ratings = [' '.join(r.split()) for r in full_text.split(',') if r.strip()]
-
-    return ratings
+    return parse_difficulty_rating(''.join(text_nodes))
 
 
 def extract_leader(tree) -> Leader:

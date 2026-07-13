@@ -37,6 +37,7 @@ export GCP_REGION=us-central1
 export DISCORD_CHANNEL_ID=123456789012345678  # Dev Discord channel
 export DISCORD_BOT_TOKEN_SECRET=discord-bot-token
 export DEPLOY_ENV=dev
+# export MTN_SCRAPER_HEADER_VALUE=MountaineersDevRequest  # Cloudflare bypass header (issue #31); defaults if unset
 ```
 
 **prod-env.sh:**
@@ -47,6 +48,7 @@ export GCP_REGION=us-central1
 export DISCORD_CHANNEL_ID=987654321098765432  # Prod Discord channel
 export DISCORD_BOT_TOKEN_SECRET=discord-bot-token
 export DEPLOY_ENV=prod
+# export MTN_SCRAPER_HEADER_VALUE=MountaineersDevRequest  # Cloudflare bypass header (issue #31); defaults if unset
 ```
 
 Make them executable:
