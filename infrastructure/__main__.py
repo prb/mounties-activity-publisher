@@ -7,6 +7,9 @@ config = pulumi.Config()
 project = gcp.config.project
 region = gcp.config.region or "us-central1"
 deploy_env = os.environ.get("DEPLOY_ENV", "prod")
+# Cloudflare bypass header value for the approved scraping URL (issue #31).
+# Low-sensitivity config (published in the issue); overridable via env.
+mtn_scraper_header_value = os.environ.get("MTN_SCRAPER_HEADER_VALUE", "MountaineersDevRequest")
 # Load secrets from files
 def read_secret_file(filename):
     try:
@@ -199,6 +202,8 @@ searcher = gcp.cloudfunctionsv2.Function("searcher",
             "GCP_PROJECT": project,
             "GCP_LOCATION": region,
             "DEPLOY_ENV": deploy_env,
+            # Searcher fetches the approved listing and needs the bypass header.
+            "MTN_SCRAPER_HEADER_VALUE": mtn_scraper_header_value,
         }
     )
 )
