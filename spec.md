@@ -344,6 +344,17 @@ is left unset; the place **name** is recovered from the title (text after the fi
 ` - `) and stored as `place_name` (plain text). Rows missing a leader or a parseable
 date are skipped defensively.
 
+**Difficulty vocabulary (observed live, issue #31).** `result-difficulty` is a
+single comma-separated string holding whatever rating the leader set on the
+activity — it can be the ski **M-scale** (e.g. `M3 Expert Ski`, which the Discord
+emoji map recognizes) or a generic **Strenuous/Technical** rating (e.g.
+`Strenuous 5, Technical 3`, which gets no emoji), and possibly both. The M-scale
+*is* available in the listing (it is not detail-page-only). Filtering to
+ski-relevant ratings only (drop Strenuous/Technical, and omit the line when
+nothing ski-relevant remains) is a **pending decision** — deferred until more
+in-season activities provide additional difficulty samples. Current behavior
+publishes whatever `result-difficulty` contains.
+
 (*Pro Tip:* For validation of XPath expressions at the commandline, `xmllint --xpath` is super useful.)
 
 The Searcher Function checks the `activities` collection for each `document_id` and,
