@@ -17,6 +17,28 @@ This project uses **Pulumi** for infrastructure management.
 - [Google Cloud SDK](https://cloud.google.com/sdk/docs/install)
 - Python 3.11+
 
+The Pulumi program (`infrastructure/`) uses a **project-local virtualenv**
+(`infrastructure/venv`, gitignored) declared via `runtime.options.virtualenv` in
+`Pulumi.yaml`. Provider versions are pinned in `infrastructure/requirements.txt`
+(pulumi-gcp 9.x). Create/refresh the venv once with:
+```bash
+cd infrastructure && pulumi install   # or: uv venv venv && uv pip install -r requirements.txt
+```
+
+### Authentication and stack
+- **Backend:** Pulumi state lives in a GCS bucket and is read via **Application
+  Default Credentials**. If a Pulumi command fails with
+  `oauth2: "invalid_grant"` / `Bad Request` when reading the state bucket, your
+  ADC token has expired — refresh it with `gcloud auth application-default login`
+  (this is separate from `gcloud auth login`).
+- **Passphrase:** the `prod` stack encrypts config/secrets with a passphrase.
+  `pulumi preview`/`up` require `PULUMI_CONFIG_PASSPHRASE` (or
+  `PULUMI_CONFIG_PASSPHRASE_FILE`) to be set in the environment.
+- **Target:** the deployed stack is `prod` (project `backcountry-ski-activity-feed`,
+  region `us-central1`). Note this differs from a typical personal default
+  `gcloud config` project, so pass `--project=backcountry-ski-activity-feed`
+  explicitly to `gcloud` commands.
+
 ### Required Secrets
 Before deploying, ensure the following files exist in the project root:
 - `DISCORD_CHANNEL_ID.secret`: Contains the Discord Channel ID.
@@ -27,13 +49,19 @@ Before deploying, ensure the following files exist in the project root:
    ```bash
    cd infrastructure
    ```
-2. Preview changes:
+2. Set the stack passphrase (see above):
    ```bash
-   pulumi preview
+   export PULUMI_CONFIG_PASSPHRASE='...'
    ```
-3. Deploy:
+3. Preview changes and review the plan — a provider-version bump can show many
+   `~ update [+deletionPolicy]` lines, which are cosmetic (a provider default
+   recorded into state), not real infrastructure changes:
    ```bash
-   pulumi up
+   pulumi preview --stack prod
+   ```
+4. Deploy:
+   ```bash
+   pulumi up --stack prod
    ```
 
 ## Manual Function Invocation
@@ -275,6 +303,33 @@ gcloud functions call drain-queues \
   --region=$GCP_REGION \
   --gen2
 ```
+
+### Seasonal Pause (off-season)
+
+Backcountry-ski activities are seasonal, so the pipeline is normally **held
+paused during the off-season** and resumed for ski season. A full pause is two
+steps — the processing flag *and* the hourly scheduler:
+
+```bash
+# Pause: flag off + stop the hourly searcher trigger
+gcloud functions call pause-processing --gen2 --region=us-central1 --project=backcountry-ski-activity-feed
+gcloud scheduler jobs pause search-scheduler --location=us-central1 --project=backcountry-ski-activity-feed
+
+# Resume for ski season
+gcloud functions call resume-processing --gen2 --region=us-central1 --project=backcountry-ski-activity-feed
+gcloud scheduler jobs resume search-scheduler --location=us-central1 --project=backcountry-ski-activity-feed
+```
+
+Notes:
+- The `processing_enabled` flag is the real gate: even if `search-scheduler`
+  fires, a paused searcher/scraper returns `skipped`. Pausing the scheduler just
+  avoids pointless hourly invocations.
+- The **publisher is not gated** by the flag (so catchup can always deliver).
+  With processing paused no new activities are created, so nothing is published;
+  to fully quiesce you may also `gcloud scheduler jobs pause publishing-catchup-scheduler`.
+- Verify: `gcloud scheduler jobs describe search-scheduler --location=us-central1 --project=backcountry-ski-activity-feed --format='value(state)'`
+  should report `PAUSED`, and a direct `searcher` invocation should return
+  `{"status":"skipped"}`.
 
 ### Recommended Workflow for Data Issues
 
