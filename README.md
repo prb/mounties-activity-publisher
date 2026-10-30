@@ -66,7 +66,9 @@ and enqueues a publish task. The Scraper function / `scrape-queue` are retained 
 
 3. **Google Cloud Project**
    - Create a project at https://console.cloud.google.com/
-   - Enable billing (free tier is## Deployment
+   - Enable billing (the free tier covers expected usage; see [Cost](#cost))
+
+## Deployment
 
 This project uses **Pulumi** for Infrastructure as Code (IaC).
 
@@ -107,17 +109,17 @@ This project uses **Pulumi** for Infrastructure as Code (IaC).
 ### Legacy Deployment
 The `deploy.sh` script is deprecated but kept for reference. It uses imperative gcloud commands.
 
-4. **Create Firestore database:**
+1. **Create Firestore database:**
    ```bash
    gcloud firestore databases create --location=us-central
    ```
 
-5. **Store Discord bot token:**
+2. **Store Discord bot token:**
    ```bash
    echo -n "your_discord_bot_token" | gcloud secrets create discord-bot-token --data-file=-
    ```
 
-6. **Deploy:**
+3. **Deploy:**
    ```bash
    ./deploy.sh
    ```
@@ -151,7 +153,7 @@ See **[OPERATIONS.md](OPERATIONS.md)** for operational tasks including:
 
 ## Testing
 
-The project includes comprehensive tests:
+The project includes a pytest suite:
 
 ```bash
 # Install development dependencies
@@ -182,9 +184,10 @@ mounties-activities-discord-publisher/
 │   ├── functions/             # Cloud Function handlers
 │   ├── http_client.py         # HTTP client with User-Agent
 │   └── discord_client.py      # Discord API client
-├── tests/                     # Comprehensive test suite (42 tests)
+├── tests/                     # pytest test suite
 ├── main.py                    # Cloud Functions entry points
-├── requirements.txt           # Production dependencies
+├── pyproject.toml             # Dependencies for development (managed with uv)
+├── requirements.txt           # Production dependencies for Cloud Functions deploys
 ├── deploy.sh                  # Automated deployment script
 └── queues.yaml                # Cloud Tasks configuration
 ```
@@ -193,7 +196,7 @@ mounties-activities-discord-publisher/
 
 Detailed documentation for each development phase:
 
-- **[Phase 1](PHASE1_README.md)**: Core extraction logic (parsers)
+- **Phase 1**: Core extraction logic (parsers); no separate document
 - **[Phase 2](PHASE2_README.md)**: Firestore data model & operations
 - **[Phase 3](PHASE3_README.md)**: Searcher & scraper functions
 - **[Phase 4](PHASE4_README.md)**: Discord publisher function
