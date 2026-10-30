@@ -1,12 +1,28 @@
 import pulumi
 import pulumi_gcp as gcp
 import os
+import subprocess
 
 # Configuration
 config = pulumi.Config()
 project = gcp.config.project
 region = gcp.config.region or "us-central1"
 deploy_env = os.environ.get("DEPLOY_ENV", "prod")
+
+
+def _git_sha() -> str:
+    """Short Git SHA of the checked-out commit, used as the application version
+    (User-Agent). Falls back to "dev" outside a Git checkout."""
+    try:
+        return subprocess.run(
+            ["git", "rev-parse", "--short", "HEAD"],
+            capture_output=True, text=True, check=True, cwd=os.path.dirname(__file__) or ".",
+        ).stdout.strip() or "dev"
+    except (OSError, subprocess.CalledProcessError):
+        return "dev"
+
+
+app_version = os.environ.get("APP_VERSION") or _git_sha()
 # Cloudflare bypass header value for the approved scraping URL (issue #31).
 # Low-sensitivity config (published in the issue); overridable via env.
 mtn_scraper_header_value = os.environ.get("MTN_SCRAPER_HEADER_VALUE", "MountaineersDevRequest")
@@ -202,6 +218,7 @@ searcher = gcp.cloudfunctionsv2.Function("searcher",
             "GCP_PROJECT": project,
             "GCP_LOCATION": region,
             "DEPLOY_ENV": deploy_env,
+            "APP_VERSION": app_version,
             # Searcher fetches the approved listing and needs the bypass header.
             "MTN_SCRAPER_HEADER_VALUE": mtn_scraper_header_value,
         }
@@ -230,6 +247,7 @@ scraper = gcp.cloudfunctionsv2.Function("scraper",
             "GCP_PROJECT": project,
             "GCP_LOCATION": region,
             "DEPLOY_ENV": deploy_env,
+            "APP_VERSION": app_version,
         }
     )
 )
@@ -255,6 +273,7 @@ publisher = gcp.cloudfunctionsv2.Function("publisher",
         environment_variables={
             "GCP_PROJECT": project,
             "GCP_LOCATION": region,
+            "APP_VERSION": app_version,
             "DISCORD_CHANNEL_ID": discord_channel_id,
         },
         secret_environment_variables=[
