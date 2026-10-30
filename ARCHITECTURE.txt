@@ -169,8 +169,9 @@
     • publish-queue: 5 dispatches/min, 1 concurrent, 3 retries
 
   Firestore Collections:
-    • activities:   one document per new activity (~420 per season); not
-                    yet cleaned up (see issue #53)
+    • activities:   one document per new activity (~420 per season); deleted
+                    by a Firestore TTL policy on expire_at (365 days after
+                    the activity date)
     • leaders:      ~5-10 documents (deduplicated)
     • places:       populated only by the dormant scraper path (issue #31)
     • bookkeeping:  1 document (status tracking)
