@@ -15,7 +15,8 @@ This project uses **Pulumi** for infrastructure management.
 ### Prerequisites
 - [Pulumi CLI](https://www.pulumi.com/docs/install/)
 - [Google Cloud SDK](https://cloud.google.com/sdk/docs/install)
-- Python 3.11+
+- Python 3.14 (see `.python-version`; the deployed runtime is `python314`)
+- [uv](https://docs.astral.sh/uv/) for local development
 
 The Pulumi program (`infrastructure/`) uses a **project-local virtualenv**
 (`infrastructure/venv`, gitignored) declared via `runtime.options.virtualenv` in
@@ -23,6 +24,15 @@ The Pulumi program (`infrastructure/`) uses a **project-local virtualenv**
 (pulumi-gcp 9.x). Create/refresh the venv once with:
 ```bash
 cd infrastructure && pulumi install   # or: uv venv venv && uv pip install -r requirements.txt
+```
+If Pulumi fails with `ModuleNotFoundError: No module named 'pulumi'`, the venv
+is missing or empty (for example after a Python version change). Re-run the
+command above.
+
+The function dependencies in the root `requirements.txt` are generated from
+`uv.lock`; regenerate them after changing dependencies:
+```bash
+uv export --no-dev --no-hashes --no-annotate --no-emit-project -o requirements.txt
 ```
 
 ### Authentication and stack
@@ -74,6 +84,17 @@ All Cloud Functions are deployed with IAM authentication required. To invoke the
 - `scraper` - **Dormant** (issue #31): detail pages are Cloudflare-protected, so nothing enqueues scrape tasks. Retained for fallback / manual reprocessing.
 - `publisher` - Publish to Discord (triggered by Cloud Tasks)
 - `publishing-catchup` - Retry failed publications (triggered by Cloud Scheduler)
+- `pause-processing`, `resume-processing` - Toggle the `processing_enabled` flag (manual)
+- `drain-queues` - Purge pending tasks from the search and scrape queues (manual)
+
+Cloud Scheduler jobs: `search-scheduler` (hourly, on the hour) and
+`publishing-catchup-scheduler` (hourly, at :30), both in `America/Los_Angeles`.
+
+Cloud Tasks queues: `search-queue`, `scrape-queue` (dormant) and
+`publish-queue`.
+
+An alert policy emails on any `ERROR`-severity Cloud Run log entry, so a
+failed run should produce an email as well as a log line.
 
 ### Prerequisites
 
@@ -145,11 +166,13 @@ gcloud functions logs read searcher \
   --gen2 \
   --limit=50
 
-# Follow logs in real-time
+# Show only warnings and errors from the last hour
+# (`gcloud functions logs read` has no --follow; re-run it to poll)
 gcloud functions logs read searcher \
   --region=$GCP_REGION \
   --gen2 \
-  --follow
+  --min-log-level=WARNING \
+  --start-time=$(date -u -v-1H +%Y-%m-%dT%H:%M:%SZ)   # macOS; on Linux use: date -u -d '1 hour ago' +%Y-%m-%dT%H:%M:%SZ
 
 # View logs for all functions
 for func in searcher scraper publisher publishing-catchup; do
@@ -188,23 +211,20 @@ gcloud tasks queues list --location=$GCP_REGION
 gcloud tasks queues describe search-queue \
   --location=$GCP_REGION
 
-# List pending tasks in a queue
-gcloud tasks list --queue=search-queue \
+# List pending tasks in a queue (publish-queue is the one in active use)
+gcloud tasks list --queue=publish-queue \
   --location=$GCP_REGION
 ```
 
 ### Query Firestore data
 
-```bash
-# Count activities in the database
-gcloud firestore databases documents list \
-  --collection-ids=activities \
-  --format="value(name)" | wc -l
+`gcloud` has no command for reading Firestore documents. Use the
+[Firebase console](https://console.firebase.google.com/) (project
+`backcountry-ski-activity-feed`) to browse these collections:
 
-# View a specific activity
-gcloud firestore databases documents describe \
-  projects/${GCP_PROJECT}/databases/(default)/documents/activities/ACTIVITY_ID
-```
+- `activities`: one document per activity (`discord_message_id` is unset until published)
+- `system/config`: the `processing_enabled` flag
+- `bookkeeping/status`: run bookkeeping written by the functions
 
 ## Troubleshooting
 
@@ -250,10 +270,11 @@ Functions are configured to handle 429 responses gracefully and will back off. C
    gcloud functions logs read publisher --region=$GCP_REGION --gen2 --limit=50
    ```
 
-2. Verify the Discord bot token secret is set correctly:
+2. Verify the Discord bot token secret exists and has an enabled version
+   (avoid `versions access`, which prints the token to the terminal):
    ```bash
    gcloud secrets describe discord-bot-token
-   gcloud secrets versions access latest --secret=discord-bot-token
+   gcloud secrets versions list discord-bot-token
    ```
 
 3. Manually trigger the publishing catchup function:
@@ -354,18 +375,11 @@ When bad or undesirable data enters the system:
 
 ### Manual Flag Control
 
-You can also manually control the processing flag in Firestore:
+You can also manually control the processing flag in the Firestore console:
 
-```bash
-# View current processing state
-gcloud firestore databases documents describe \
-  projects/${GCP_PROJECT}/databases/(default)/documents/system/config
-
-# Update processing flag (using Firestore console or gcloud)
-# Collection: system
-# Document: config
-# Field: processing_enabled (boolean)
-```
+- Collection: `system`
+- Document: `config`
+- Field: `processing_enabled` (boolean; a missing document or field means enabled)
 
 When processing is paused, searcher and scraper functions will return:
 ```json
