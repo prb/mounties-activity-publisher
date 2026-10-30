@@ -1,5 +1,6 @@
-# Cloud Tasks queue configuration
-# Deploy with: gcloud tasks queues create-app-engine-queue
+# Cloud Tasks queue configuration (REFERENCE ONLY).
+# The queues are managed by Pulumi (infrastructure/__main__.py), which is the
+# source of truth. Keep these values in sync with it; this file is not deployed.
 
 queue:
   - name: search-queue

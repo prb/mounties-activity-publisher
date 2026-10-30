@@ -4,28 +4,29 @@ This [Discord App](https://discord.com/developers/docs/quick-start/overview-of-a
 The design of the system is straightforward:
 
 - Poll the Mountaineers website for activities on a configurable schedule.
-- Scrape activity data out of the search results.
-- For each search result that hasn't already been processed, crawl the activity detail pages linked from the search results.
-- Store any new activities in a persistent cache and publish a message to Discord.
+- Scrape activity data out of the search results (the listing page).
+- For each search result that hasn't already been processed, store it in a persistent cache and publish a message to Discord.
+
+(The original design also crawled each activity's detail page. Cloudflare protection now blocks those pages, so the pipeline is single-pass; see the Cloudflare note under *Mountaineers Website Search API, Polling, and Scraping*. The detail-scraping code is retained but dormant.)
 
 ## High-level Architecture
 This project will use Google Firebase features and functionality, specifically:
 
 - A scheduled Cloud Function to trigger an initial search on a regular interval.
 - A scheduled Cloud Function to trigger publishing catch-up code on a regular interval.
-- Cloud Function to host the searching code.  This will be called by Cloud Tasks.  The searching code will determine if there are additional pages of results to process and enqueue successive search tasks for those.
-- Cloud Function to host the scraping code.  This will be called by Cloud Tasks.
+- Cloud Function to host the searching code.  This will be called by Cloud Scheduler (first page) and Cloud Tasks (subsequent pages).  The searching code builds each activity from the listing, stores new ones, enqueues a publish task for each, and enqueues a search task for the next page when there is one.
+- Cloud Function to host the (dormant) detail scraping code.  This will be called by Cloud Tasks if it is ever re-enabled.
 - Cloud Function to host the Discord publishing code.  This will be called by Cloud Tasks.
 - Cloud Functions for queue management (pause processing, resume processing, drain queues). These are manually invoked for operational control.
 - Cloud Firestore to host the persistent cache(s) in the form of document collection(s).
 - Cloud Firestore to store system configuration (processing control flags).
 - Google Cloud Tasks configured with one queue for searching tasks, one for scraping tasks, and one for publishing tasks.
-- Firebase Remote Config to manage configuration.
+- Configuration is supplied as function environment variables set by the Pulumi program, plus the `system/config` Firestore document for runtime operational flags. (Firebase Remote Config was considered and is not used.)
 - Google Cloud Secrets to manage secrets.
 
 Up to date architecture diagrams should be generated using PlantUML (see [architecture.puml](architecture.puml)) and stored in [ARCHITECTURE.txt](ARCHITECTURE.txt).
 
-The total traffic is intended to fit within the confines and capabiltiies of the free "Spark" tier on Firebase and other Google Cloud functionality.  We prefer `queues.yaml` to manage the Cloud Tasks queues.
+The total traffic is intended to fit within the confines and capabiltiies of the free "Spark" tier on Firebase and other Google Cloud functionality.  Infrastructure, including the Cloud Tasks queues, is managed with Pulumi (see `infrastructure/` and [OPERATIONS.md](OPERATIONS.md)). [queues.yaml](queues.yaml) is retained as a reference for the queue settings but is not used for deployment.
 
 ### Cloud Functions Generation
 
@@ -33,8 +34,8 @@ The total traffic is intended to fit within the confines and capabiltiies of the
 
 Key implications:
 - 2nd gen functions are built on Cloud Run and Eventarc
-- Runtime: Python 3.13 (or latest available Python 3.x)
-- Deployment uses `--gen2` flag
+- Runtime: Python 3.14 (`python314`; or latest available Python 3.x)
+- Deployment is performed with Pulumi (`cloudfunctionsv2`); the legacy `deploy.sh` uses the `--gen2` flag
 - IAM permissions must be granted via `gcloud run services` commands, not `gcloud functions` commands
 - Functions are deployed with `--no-allow-unauthenticated` for IAM authentication
 - OIDC token authentication is used for Cloud Scheduler invocations
@@ -50,8 +51,10 @@ Cloud Tasks needs to know the URLs of target functions for task enqueueing. Rath
 
 ```python
 # Format: https://{region}-{project-id}.cloudfunctions.net/{function-name}
-url = f"https://{LOCATION}-{PROJECT_ID}.cloudfunctions.net/scraper"
+url = f"https://{LOCATION}-{get_project_id()}.cloudfunctions.net/publisher"
 ```
+
+The project ID comes from the required `GCP_PROJECT` environment variable; `get_project_id()` raises an error when it is not set. Each URL can be overridden with an environment variable (for example `PUBLISH_FUNCTION_URL`).
 
 This eliminates the need for double deployment and reduces deployment time.
 
@@ -72,7 +75,7 @@ All project code will be written in modern, idiomatic Python3 with doctests wher
 - **Cloud Tasks**: 1M tasks/month free ([pricing](https://cloud.google.com/tasks/pricing))
 - **Cloud Scheduler**: 3 jobs free ([pricing](https://cloud.google.com/scheduler/pricing))
 
-The expected monthly usage (~22K function invocations, ~420 activities, 2 scheduler jobs, ~20K tasks) fits comfortably within these limits.
+The expected monthly usage (a few thousand function invocations, ~420 activities, 2 scheduler jobs, a few thousand tasks) fits comfortably within these limits. The dormant scraper no longer contributes invocations or tasks.
 
 ### Security
 
@@ -84,7 +87,7 @@ The search and publishing catchup functions will be invoked via Cloud Scheduler 
 
 #### Cloud Tasks Authentication
 
-The scraper and publisher functions (invoked via Cloud Tasks) **must also use OIDC token authentication**. Cloud Tasks will use the App Engine default service account (`{project-id}@appspot.gserviceaccount.com`) to generate OIDC tokens for invoking Gen2 Cloud Functions.
+The searcher (pagination), publisher and (dormant) scraper functions (invoked via Cloud Tasks) **must also use OIDC token authentication**. Cloud Tasks will use the App Engine default service account (`{project-id}@appspot.gserviceaccount.com`) to generate OIDC tokens for invoking Gen2 Cloud Functions.
 
 **Critical requirement**: All Cloud Tasks must include OIDC token configuration:
 ```python
@@ -105,7 +108,7 @@ Environment separation is achieved through:
 - **Environment-specific configuration**: Different Discord channels, secrets, and Firestore databases per environment
 - **Environment variable**: `DEPLOY_ENV` (defaults to `prod`, can be set to `dev`, `staging`, etc.)
 
-Example deployment workflow:
+Deployments are performed with Pulumi (see [OPERATIONS.md](OPERATIONS.md)); the production stack is `prod`. The legacy `deploy.sh` workflow is shown below for reference:
 ```bash
 # Deploy to development
 export DEPLOY_ENV=dev
@@ -136,7 +139,7 @@ The following configuration information will be stored:
 
 The default schedule for search execution should be every hour on the hour.  The default schedule for publishing cleanup should be every hour on the half hour.
 
-All functions should respond gracefull to `429` response codes and log an informative message.  Rate limits, concurrency, and backoff should be as follows:
+All functions should respond gracefull to `429` response codes and log an informative message. *(Not yet implemented; tracked in [issue #52](https://github.com/prb/mounties-activity-publisher/issues/52).)*  Rate limits, concurrency, and backoff should be as follows:
 
 - Search queue: 10rpm, concurrency one, three retries, 10s initial backoff, doubling up to 60s
 - Scrape queue: 30rpm, concurrency five, three retries, 10s initial backoff, doubling up to 120s
@@ -170,7 +173,7 @@ The document ID should be final path segment of the `activity_permalink`, e.g.,
 https://www.mountaineers.org/activities/activities/death-gully-72
 ```
 
-would have a document ID of `death-gully-72`.  Activities should remain in the cache until a configurable number of days after the `activity_date`.
+would have a document ID of `death-gully-72`.  Activities should remain in the cache until a configurable number of days after the `activity_date`. *(Not yet implemented; no cleanup exists and activities are currently kept indefinitely. Tracked in [issue #53](https://github.com/prb/mounties-activity-publisher/issues/53).)*
 
 ### Leaders Collection
 The persistent cache will contain a `leaders` collection.  Each `leader` document in the collection will have the following fields:
@@ -217,7 +220,7 @@ The `bookkeeping` collection contains a single document with the ID `status` and
 The status message should be one of:
 
 - `Green` if the function completed successfully.
-- `Yellow: Backing off.` if the function is in backoff due to a `429`
+- `Yellow: Backing off.` if the function is in backoff due to a `429` *(not yet implemented; see [issue #52](https://github.com/prb/mounties-activity-publisher/issues/52))*
 - `Red: {message}` if the function failed, and `{message}` is a descriptive message.
 
 ### System Configuration Collection
