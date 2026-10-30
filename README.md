@@ -194,13 +194,15 @@ mounties-activities-discord-publisher/
 
 ## Documentation
 
-Detailed documentation for each development phase:
+- **[spec.md](spec.md)**: Specification and design
+- **[ARCHITECTURE.txt](ARCHITECTURE.txt)**: Architecture diagram
+- **[OPERATIONS.md](OPERATIONS.md)**: Operations and troubleshooting
+- **[ENVIRONMENTS.md](ENVIRONMENTS.md)**: Deployment environments
+- **[COST.md](COST.md)**: Cost expectations
 
-- **Phase 1**: Core extraction logic (parsers); no separate document
-- **[Phase 2](PHASE2_README.md)**: Firestore data model & operations
-- **[Phase 3](PHASE3_README.md)**: Searcher & scraper functions
-- **[Phase 4](PHASE4_README.md)**: Discord publisher function
-- **[Phase 5](PHASE5_README.md)**: Cloud Tasks configuration & deployment
+The original per-phase build notes are kept for reference in
+[docs/historical/](docs/historical/) and are out of date; they are slated for
+eventual deletion.
 
 ## Manual Testing
 
@@ -276,7 +278,7 @@ gcloud projects add-iam-policy-binding $GCP_PROJECT \
 3. Confirm the approved listing is reachable — a Cloudflare `403` means the `mtn-approved-scraper` header/`MTN_SCRAPER_HEADER_VALUE` is missing or wrong
 4. Check for Firestore permission errors
 
-See [PHASE5_README.md](PHASE5_README.md#troubleshooting) for detailed troubleshooting.
+See [OPERATIONS.md](OPERATIONS.md#troubleshooting) for detailed troubleshooting.
 
 ## Development
 
@@ -313,4 +315,4 @@ This project was developed iteratively through 5 phases. Each phase built upon t
 4. **Phase 4**: Discord integration
 5. **Phase 5**: Deployment automation
 
-For details on each phase, see the individual phase documentation.
+For details on each phase, see the (outdated) notes in [docs/historical/](docs/historical/).
