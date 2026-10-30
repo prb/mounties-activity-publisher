@@ -166,6 +166,7 @@ The persistent cache will contain an `activities` collection.  Each `activity` d
 - `branch` (text string): The sponsoring branch for the activity.
 - `leader_ref` (reference): A reference to a document in the `leaders` collection.
 - `discord_message_id` (text string): The ID of the Discord message associated with the activity, once published.
+- `expire_at` (date and time): When the document becomes eligible for automatic deletion: the `activity_date` plus the retention period (365 days by default; the `ACTIVITY_RETENTION_DAYS` environment variable overrides it). A Firestore TTL policy on this field, declared in the Pulumi program, performs the deletion.
 
 The document ID should be final path segment of the `activity_permalink`, e.g.,
 
@@ -173,7 +174,7 @@ The document ID should be final path segment of the `activity_permalink`, e.g.,
 https://www.mountaineers.org/activities/activities/death-gully-72
 ```
 
-would have a document ID of `death-gully-72`.  Activities should remain in the cache until a configurable number of days after the `activity_date`. *(Not yet implemented; no cleanup exists and activities are currently kept indefinitely. Tracked in [issue #53](https://github.com/prb/mounties-activity-publisher/issues/53).)*
+would have a document ID of `death-gully-72`.  Activities remain in the cache until the retention period (365 days by default) after the `activity_date` has passed, at which point the Firestore TTL policy on `expire_at` deletes them. Deletion is not immediate; it typically happens within about a day of expiry. Activities that predate the `expire_at` field are updated once with `scripts/backfill_expire_at.py` (see [OPERATIONS.md](OPERATIONS.md)). The retention period must outlast the time an activity stays on the Mountaineers listing, because the searcher treats a missing document as a new activity and would publish it again.
 
 ### Leaders Collection
 The persistent cache will contain a `leaders` collection.  Each `leader` document in the collection will have the following fields:

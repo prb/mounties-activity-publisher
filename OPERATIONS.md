@@ -226,6 +226,26 @@ gcloud tasks list --queue=publish-queue --project=$GCP_PROJECT \
 - `system/config`: the `processing_enabled` flag
 - `bookkeeping/status`: run bookkeeping written by the functions
 
+### Activity retention
+
+Activity documents carry an `expire_at` timestamp (the activity date plus 365
+days; `ACTIVITY_RETENTION_DAYS` overrides it). A Firestore TTL policy on that
+field, declared in the Pulumi program, deletes expired activities, typically
+within about a day of expiry. Leaders and places are kept.
+
+Activities created before `expire_at` existed need a one-time backfill. Run a
+dry run first, then apply:
+
+```bash
+export GCP_PROJECT=backcountry-ski-activity-feed
+uv run python -m scripts.backfill_expire_at            # dry run: lists what would change
+uv run python -m scripts.backfill_expire_at --apply    # writes expire_at
+```
+
+Documents whose expiry is already in the past are deleted by the TTL policy
+shortly after the backfill. Check the TTL policy with
+`gcloud firestore fields ttls list --project=$GCP_PROJECT`.
+
 ## Troubleshooting
 
 ### 401 Unauthorized errors
@@ -261,7 +281,7 @@ If you see errors like "The request was not authenticated" in function logs:
 
 ### 429 Rate Limit errors
 
-Functions are configured to handle 429 responses gracefully and will back off. Check the Cloud Logs for "Backing off" messages.
+The publisher honors Discord's `Retry-After` and retries in-line (at most three attempts and 30 seconds of waiting). If Discord is still rate limiting, or the searcher gets a 429 from the Mountaineers site, the function records `Yellow: Backing off.` in `bookkeeping/status`, logs a warning ("rate limited"), and returns an error result. The publishing catchup (:30) and the next hourly search retry; the next success records `Green` again.
 
 ### No activities being published
 

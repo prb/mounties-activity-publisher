@@ -102,6 +102,17 @@ error_log_policy = gcp.monitoring.AlertPolicy("error-log-policy",
 #     type="FIRESTORE_NATIVE",
 #     opts=pulumi.ResourceOptions(protect=True)) # Protect database from deletion
 
+# Activity retention: a Firestore TTL policy deletes activity documents once
+# their `expire_at` timestamp passes (set to activity_date + retention days when
+# the activity is written; see src/db/activities.py). Deletion is not immediate
+# (typically within about a day of expiry). Leaders and places are kept.
+activities_ttl = gcp.firestore.Field("activities-expire-at-ttl",
+    project=project,
+    database="(default)",
+    collection="activities",
+    field="expire_at",
+    ttl_config=gcp.firestore.FieldTtlConfigArgs())
+
 # Initialize system configuration document
 # This ensures the processing_enabled flag exists with a default value
 # Note: Firestore documents are created via the Firestore API, not Pulumi resources

@@ -1,5 +1,7 @@
 """Activity collection operations."""
 
+import os
+from datetime import datetime, timedelta
 from typing import Optional
 from google.cloud.firestore_v1 import DocumentReference
 
@@ -10,6 +12,22 @@ from .places import get_place
 
 
 COLLECTION_NAME = 'activities'
+
+# Activities are deleted by a Firestore TTL policy on `expire_at` (see the Pulumi
+# program), this many days after the activity date.
+ACTIVITY_RETENTION_DAYS = int(os.environ.get('ACTIVITY_RETENTION_DAYS', '365'))
+
+
+def compute_expire_at(activity_date: datetime) -> datetime:
+    """Return the time at which an activity document expires (TTL deletion).
+
+    Example:
+        >>> from datetime import timezone
+        >>> compute_expire_at(datetime(2026, 2, 10, tzinfo=timezone.utc)).year
+        2027
+    """
+    return activity_date + timedelta(days=ACTIVITY_RETENTION_DAYS)
+
 
 
 def create_activity(activity: Activity, transaction=None) -> DocumentReference:
@@ -54,6 +72,7 @@ def create_activity(activity: Activity, transaction=None) -> DocumentReference:
         'activity_type': activity.activity_type,
         'branch': activity.branch,
         'discord_message_id': activity.discord_message_id,  # Always include, even if None
+        'expire_at': compute_expire_at(activity.activity_date),
     }
     # Remove other keys with None values (but keep discord_message_id)
     data = {k: v for k, v in data.items() if k == 'discord_message_id' or v is not None}
@@ -113,6 +132,7 @@ def update_activity(activity: Activity) -> DocumentReference:
         'activity_type': activity.activity_type,
         'branch': activity.branch,
         'discord_message_id': activity.discord_message_id,
+        'expire_at': compute_expire_at(activity.activity_date),
     }
     # Remove keys with None values
     data = {k: v for k, v in data.items() if v is not None}
