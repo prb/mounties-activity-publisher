@@ -6,7 +6,7 @@ from google.cloud import tasks_v2
 
 from ..tasks.client import (
     get_tasks_client,
-    PROJECT_ID,
+    get_project_id,
     LOCATION,
     SEARCH_QUEUE,
     SCRAPE_QUEUE,
@@ -45,12 +45,12 @@ def drain_queues_handler() -> Dict[str, Any]:
         client = get_tasks_client()
         
         # Purge search queue
-        search_queue_path = client.queue_path(PROJECT_ID, LOCATION, SEARCH_QUEUE)
+        search_queue_path = client.queue_path(get_project_id(), LOCATION, SEARCH_QUEUE)
         logger.info(f"Purging queue: {search_queue_path}")
         client.purge_queue(name=search_queue_path)
         
         # Purge scrape queue
-        scrape_queue_path = client.queue_path(PROJECT_ID, LOCATION, SCRAPE_QUEUE)
+        scrape_queue_path = client.queue_path(get_project_id(), LOCATION, SCRAPE_QUEUE)
         logger.info(f"Purging queue: {scrape_queue_path}")
         client.purge_queue(name=scrape_queue_path)
         

@@ -12,35 +12,55 @@ logger = logging.getLogger(__name__)
 
 
 # Environment configuration
-PROJECT_ID = os.environ.get('GCP_PROJECT', 'your-project-id')
 LOCATION = os.environ.get('GCP_LOCATION', 'us-central1')
+
+
+def get_project_id() -> str:
+    """
+    Get the GCP project ID from the GCP_PROJECT environment variable.
+
+    Resolved at call time so that importing this module does not require
+    the variable (deployed functions always receive it from Pulumi).
+
+    Raises:
+        RuntimeError: If GCP_PROJECT is unset or empty.
+    """
+    project_id = os.environ.get('GCP_PROJECT', '').strip()
+    if not project_id:
+        raise RuntimeError(
+            "GCP_PROJECT environment variable is not set; "
+            "set it to the target Google Cloud project ID."
+        )
+    return project_id
+
 
 # Service account for Cloud Tasks OIDC authentication
 # Gen2 functions require OIDC tokens for authentication
-# This should be the default compute service account
-def _get_service_account() -> str:
+def get_service_account() -> str:
     """Get the service account email for Cloud Tasks authentication."""
-    # Default compute service account format
+    # Default App Engine service account format
     # For more control, could create a dedicated service account
-    return os.environ.get('CLOUD_TASKS_SERVICE_ACCOUNT', f'{PROJECT_ID}@appspot.gserviceaccount.com')
+    return os.environ.get(
+        'CLOUD_TASKS_SERVICE_ACCOUNT',
+        f'{get_project_id()}@appspot.gserviceaccount.com',
+    )
 
-SERVICE_ACCOUNT = _get_service_account()
 
 # Queue names
 SEARCH_QUEUE = 'search-queue'
 SCRAPE_QUEUE = 'scrape-queue'
 PUBLISH_QUEUE = 'publish-queue'
 
+
 # Cloud Function URLs - Gen2 functions have predictable URLs
 # Format: https://{region}-{project-id}.cloudfunctions.net/{function-name}
 # Can be overridden via environment variables if needed
-def _construct_function_url(function_name: str) -> str:
-    """Construct Cloud Function Gen2 URL based on naming convention."""
-    return f"https://{LOCATION}-{PROJECT_ID}.cloudfunctions.net/{function_name}"
-
-SEARCH_FUNCTION_URL = os.environ.get('SEARCH_FUNCTION_URL', _construct_function_url('searcher'))
-SCRAPE_FUNCTION_URL = os.environ.get('SCRAPE_FUNCTION_URL', _construct_function_url('scraper'))
-PUBLISH_FUNCTION_URL = os.environ.get('PUBLISH_FUNCTION_URL', _construct_function_url('publisher'))
+def get_function_url(function_name: str, env_var: str) -> str:
+    """Get a Cloud Function URL, preferring an explicit env var override."""
+    override = os.environ.get(env_var)
+    if override:
+        return override
+    return f"https://{LOCATION}-{get_project_id()}.cloudfunctions.net/{function_name}"
 
 
 _tasks_client: Optional[tasks_v2.CloudTasksClient] = None
@@ -75,7 +95,8 @@ def enqueue_search_task(start_index: int, activity_type: str = 'Backcountry Skii
     client = get_tasks_client()
 
     # Construct the queue path
-    parent = client.queue_path(PROJECT_ID, LOCATION, SEARCH_QUEUE)
+    parent = client.queue_path(get_project_id(), LOCATION, SEARCH_QUEUE)
+    function_url = get_function_url('searcher', 'SEARCH_FUNCTION_URL')
 
     # Task payload
     payload = {
@@ -88,14 +109,14 @@ def enqueue_search_task(start_index: int, activity_type: str = 'Backcountry Skii
     task = {
         'http_request': {
             'http_method': tasks_v2.HttpMethod.POST,
-            'url': SEARCH_FUNCTION_URL,
+            'url': function_url,
             'headers': {
                 'Content-Type': 'application/json',
             },
             'body': json.dumps(payload).encode(),
             'oidc_token': {
-                'service_account_email': SERVICE_ACCOUNT,
-                'audience': SEARCH_FUNCTION_URL,
+                'service_account_email': get_service_account(),
+                'audience': function_url,
             },
         }
     }
@@ -128,7 +149,8 @@ def enqueue_scrape_task(activity_url: str) -> str:
     client = get_tasks_client()
 
     # Construct the queue path
-    parent = client.queue_path(PROJECT_ID, LOCATION, SCRAPE_QUEUE)
+    parent = client.queue_path(get_project_id(), LOCATION, SCRAPE_QUEUE)
+    function_url = get_function_url('scraper', 'SCRAPE_FUNCTION_URL')
 
     # Task payload
     payload = {
@@ -140,14 +162,14 @@ def enqueue_scrape_task(activity_url: str) -> str:
     task = {
         'http_request': {
             'http_method': tasks_v2.HttpMethod.POST,
-            'url': SCRAPE_FUNCTION_URL,
+            'url': function_url,
             'headers': {
                 'Content-Type': 'application/json',
             },
             'body': json.dumps(payload).encode(),
             'oidc_token': {
-                'service_account_email': SERVICE_ACCOUNT,
-                'audience': SCRAPE_FUNCTION_URL,
+                'service_account_email': get_service_account(),
+                'audience': function_url,
             },
         }
     }
@@ -180,7 +202,8 @@ def enqueue_publish_task(activity_id: str) -> str:
     client = get_tasks_client()
 
     # Construct the queue path
-    parent = client.queue_path(PROJECT_ID, LOCATION, PUBLISH_QUEUE)
+    parent = client.queue_path(get_project_id(), LOCATION, PUBLISH_QUEUE)
+    function_url = get_function_url('publisher', 'PUBLISH_FUNCTION_URL')
 
     # Task payload
     payload = {
@@ -192,14 +215,14 @@ def enqueue_publish_task(activity_id: str) -> str:
     task = {
         'http_request': {
             'http_method': tasks_v2.HttpMethod.POST,
-            'url': PUBLISH_FUNCTION_URL,
+            'url': function_url,
             'headers': {
                 'Content-Type': 'application/json',
             },
             'body': json.dumps(payload).encode(),
             'oidc_token': {
-                'service_account_email': SERVICE_ACCOUNT,
-                'audience': PUBLISH_FUNCTION_URL,
+                'service_account_email': get_service_account(),
+                'audience': function_url,
             },
         }
     }
