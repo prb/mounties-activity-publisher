@@ -46,8 +46,8 @@ uv export --no-dev --no-hashes --no-annotate --no-emit-project -o requirements.t
   `PULUMI_CONFIG_PASSPHRASE_FILE`) to be set in the environment.
 - **Target:** the deployed stack is `prod` (project `backcountry-ski-activity-feed`,
   region `us-central1`). Note this differs from a typical personal default
-  `gcloud config` project, so pass `--project=backcountry-ski-activity-feed`
-  explicitly to `gcloud` commands.
+  `gcloud config` project, so pass `--project=$GCP_PROJECT` (with `GCP_PROJECT`
+  exported, as in the examples below) to every `gcloud` command.
 
 ### Required Secrets
 Before deploying, ensure the following files exist in the project root:
@@ -105,16 +105,16 @@ failed run should produce an email as well as a log line.
 
 ```bash
 # Set your environment variables
-export GCP_PROJECT=your-project-id
+export GCP_PROJECT=backcountry-ski-activity-feed
 export GCP_REGION=us-central1
 
 # Get function URLs
-SEARCHER_URL=$(gcloud functions describe searcher \
+SEARCHER_URL=$(gcloud functions describe searcher --project=$GCP_PROJECT \
   --region=$GCP_REGION \
   --gen2 \
   --format="value(serviceConfig.uri)")
 
-PUBLISHING_CATCHUP_URL=$(gcloud functions describe publishing-catchup \
+PUBLISHING_CATCHUP_URL=$(gcloud functions describe publishing-catchup --project=$GCP_PROJECT \
   --region=$GCP_REGION \
   --gen2 \
   --format="value(serviceConfig.uri)")
@@ -143,11 +143,11 @@ curl -X POST \
 
 ```bash
 # Manually trigger the scheduled search job
-gcloud scheduler jobs run search-scheduler \
+gcloud scheduler jobs run search-scheduler --project=$GCP_PROJECT \
   --location=$GCP_REGION
 
 # Manually trigger the publishing catchup job
-gcloud scheduler jobs run publishing-catchup-scheduler \
+gcloud scheduler jobs run publishing-catchup-scheduler --project=$GCP_PROJECT \
   --location=$GCP_REGION
 ```
 
@@ -161,14 +161,14 @@ This project uses native Google Cloud Logging. You can view logs in the [Google 
 
 ```bash
 # View recent logs for a specific function
-gcloud functions logs read searcher \
+gcloud functions logs read searcher --project=$GCP_PROJECT \
   --region=$GCP_REGION \
   --gen2 \
   --limit=50
 
 # Show only warnings and errors from the last hour
 # (`gcloud functions logs read` has no --follow; re-run it to poll)
-gcloud functions logs read searcher \
+gcloud functions logs read searcher --project=$GCP_PROJECT \
   --region=$GCP_REGION \
   --gen2 \
   --min-log-level=WARNING \
@@ -177,7 +177,7 @@ gcloud functions logs read searcher \
 # View logs for all functions
 for func in searcher scraper publisher publishing-catchup; do
   echo "=== Logs for $func ==="
-  gcloud functions logs read $func \
+  gcloud functions logs read $func --project=$GCP_PROJECT \
     --region=$GCP_REGION \
     --gen2 \
     --limit=10
@@ -189,14 +189,14 @@ done
 
 ```bash
 # List all scheduler jobs
-gcloud scheduler jobs list --location=$GCP_REGION
+gcloud scheduler jobs list --location=$GCP_REGION --project=$GCP_PROJECT
 
 # View details of a specific job
-gcloud scheduler jobs describe search-scheduler \
+gcloud scheduler jobs describe search-scheduler --project=$GCP_PROJECT \
   --location=$GCP_REGION
 
 # View recent executions
-gcloud scheduler jobs describe search-scheduler \
+gcloud scheduler jobs describe search-scheduler --project=$GCP_PROJECT \
   --location=$GCP_REGION \
   --format="table(status.lastAttemptTime, status.code)"
 ```
@@ -205,14 +205,14 @@ gcloud scheduler jobs describe search-scheduler \
 
 ```bash
 # List all queues
-gcloud tasks queues list --location=$GCP_REGION
+gcloud tasks queues list --location=$GCP_REGION --project=$GCP_PROJECT
 
 # View queue details and stats
-gcloud tasks queues describe search-queue \
+gcloud tasks queues describe search-queue --project=$GCP_PROJECT \
   --location=$GCP_REGION
 
 # List pending tasks in a queue (publish-queue is the one in active use)
-gcloud tasks list --queue=publish-queue \
+gcloud tasks list --queue=publish-queue --project=$GCP_PROJECT \
   --location=$GCP_REGION
 ```
 
@@ -240,7 +240,7 @@ If you see errors like "The request was not authenticated" in function logs:
 
 1. Verify the scheduler service account has permissions:
    ```bash
-   gcloud run services get-iam-policy searcher \
+   gcloud run services get-iam-policy searcher --project=$GCP_PROJECT \
      --region=$GCP_REGION \
      --platform=managed \
      --filter="bindings.role:roles/run.invoker"
@@ -248,13 +248,13 @@ If you see errors like "The request was not authenticated" in function logs:
 
 2. Check that the service account exists:
    ```bash
-   gcloud iam service-accounts describe \
+   gcloud iam service-accounts describe --project=$GCP_PROJECT \
      scheduler-invoker@${GCP_PROJECT}.iam.gserviceaccount.com
    ```
 
 3. Verify scheduler job is using OIDC authentication:
    ```bash
-   gcloud scheduler jobs describe search-scheduler \
+   gcloud scheduler jobs describe search-scheduler --project=$GCP_PROJECT \
      --location=$GCP_REGION \
      --format="yaml(httpTarget.oidcToken)"
    ```
@@ -267,19 +267,19 @@ Functions are configured to handle 429 responses gracefully and will back off. C
 
 1. Check Cloud Logs for errors:
    ```bash
-   gcloud functions logs read publisher --region=$GCP_REGION --gen2 --limit=50
+   gcloud functions logs read publisher --region=$GCP_REGION --gen2 --limit=50 --project=$GCP_PROJECT
    ```
 
 2. Verify the Discord bot token secret exists and has an enabled version
    (avoid `versions access`, which prints the token to the terminal):
    ```bash
-   gcloud secrets describe discord-bot-token
-   gcloud secrets versions list discord-bot-token
+   gcloud secrets describe discord-bot-token --project=$GCP_PROJECT
+   gcloud secrets versions list discord-bot-token --project=$GCP_PROJECT
    ```
 
 3. Manually trigger the publishing catchup function:
    ```bash
-   gcloud scheduler jobs run publishing-catchup-scheduler --location=$GCP_REGION
+   gcloud scheduler jobs run publishing-catchup-scheduler --location=$GCP_REGION --project=$GCP_PROJECT
    ```
 
 4. Verify the Discord channel ID environment variable is set.
@@ -288,14 +288,14 @@ Functions are configured to handle 429 responses gracefully and will back off. C
 
 1. Verify Cloud Scheduler jobs exist and are enabled:
    ```bash
-   gcloud scheduler jobs list --location=$GCP_REGION
+   gcloud scheduler jobs list --location=$GCP_REGION --project=$GCP_PROJECT
    ```
 
 2. Check that the scheduler service account has the `Cloud Run Invoker` role.
 
 3. Review scheduler job execution history:
    ```bash
-   gcloud scheduler jobs describe search-scheduler \
+   gcloud scheduler jobs describe search-scheduler --project=$GCP_PROJECT \
      --location=$GCP_REGION \
      --format="yaml(status)"
    ```
@@ -310,17 +310,17 @@ Processing can be paused and resumed using Firestore-based configuration:
 
 ```bash
 # Pause processing (stops searcher and scraper from processing new tasks)
-gcloud functions call pause-processing \
+gcloud functions call pause-processing --project=$GCP_PROJECT \
   --region=$GCP_REGION \
   --gen2
 
 # Resume processing
-gcloud functions call resume-processing \
+gcloud functions call resume-processing --project=$GCP_PROJECT \
   --region=$GCP_REGION \
   --gen2
 
 # Drain queues (purge all pending tasks)
-gcloud functions call drain-queues \
+gcloud functions call drain-queues --project=$GCP_PROJECT \
   --region=$GCP_REGION \
   --gen2
 ```
@@ -347,7 +347,7 @@ Notes:
   avoids pointless hourly invocations.
 - The **publisher is not gated** by the flag (so catchup can always deliver).
   With processing paused no new activities are created, so nothing is published;
-  to fully quiesce you may also `gcloud scheduler jobs pause publishing-catchup-scheduler`.
+  to fully quiesce you may also `gcloud scheduler jobs pause publishing-catchup-scheduler --project=$GCP_PROJECT`.
 - Verify: `gcloud scheduler jobs describe search-scheduler --location=us-central1 --project=backcountry-ski-activity-feed --format='value(state)'`
   should report `PAUSED`, and a direct `searcher` invocation should return
   `{"status":"skipped"}`.
@@ -358,19 +358,19 @@ When bad or undesirable data enters the system:
 
 1. **Pause processing** to prevent new tasks from being processed:
    ```bash
-   gcloud functions call pause-processing --region=$GCP_REGION --gen2
+   gcloud functions call pause-processing --region=$GCP_REGION --gen2 --project=$GCP_PROJECT
    ```
 
 2. **Drain queues** to clear all pending tasks:
    ```bash
-   gcloud functions call drain-queues --region=$GCP_REGION --gen2
+   gcloud functions call drain-queues --region=$GCP_REGION --gen2 --project=$GCP_PROJECT
    ```
 
 3. **Fix data issues** in Firestore manually or via scripts
 
 4. **Resume processing** to restart the pipeline:
    ```bash
-   gcloud functions call resume-processing --region=$GCP_REGION --gen2
+   gcloud functions call resume-processing --region=$GCP_REGION --gen2 --project=$GCP_PROJECT
    ```
 
 ### Manual Flag Control
