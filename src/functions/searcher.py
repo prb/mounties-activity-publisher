@@ -9,6 +9,8 @@ is kept dormant as a fallback / manual-reprocessing path. See issue #31.
 import logging
 from typing import Dict, Any
 
+import requests
+
 from ..db import (
     activity_exists,
     create_activity,
@@ -106,6 +108,17 @@ def searcher_handler(start_index: int = 0, activity_type: str = 'Backcountry Ski
         }
 
     except Exception as e:
+        response = getattr(e, 'response', None)
+        if isinstance(e, requests.exceptions.HTTPError) and response is not None and response.status_code == 429:
+            # Rate limited by the Mountaineers site. No in-line retry: the next
+            # scheduled search is the retry.
+            logger.warning(f"Search rate limited (429); backing off until the next run: {e}")
+            update_search_status("Yellow: Backing off.")
+            return {
+                'status': 'error',
+                'error': str(e),
+            }
+
         logger.error(f"Error in searcher_handler: {e}", exc_info=True)
 
         # Update bookkeeping status
