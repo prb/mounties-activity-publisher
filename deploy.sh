@@ -132,7 +132,7 @@ echo ""
 echo -e "${YELLOW}Deploying Searcher function...${NC}"
 gcloud functions deploy searcher \
     --gen2 \
-    --runtime=python313 \
+    --runtime=python314 \
     --region="$REGION" \
     --source=. \
     --entry-point=searcher \
@@ -149,7 +149,7 @@ echo -e "${GREEN}✓ Searcher function deployed${NC}"
 echo -e "${YELLOW}Deploying Scraper function...${NC}"
 gcloud functions deploy scraper \
     --gen2 \
-    --runtime=python313 \
+    --runtime=python314 \
     --region="$REGION" \
     --source=. \
     --entry-point=scraper \
@@ -186,7 +186,7 @@ echo ""
 echo -e "${YELLOW}Deploying Publisher function...${NC}"
 gcloud functions deploy publisher \
     --gen2 \
-    --runtime=python313 \
+    --runtime=python314 \
     --region="$REGION" \
     --source=. \
     --entry-point=publisher \
@@ -204,7 +204,7 @@ echo -e "${GREEN}✓ Publisher function deployed${NC}"
 echo -e "${YELLOW}Deploying Publishing Catchup function...${NC}"
 gcloud functions deploy publishing-catchup \
     --gen2 \
-    --runtime=python313 \
+    --runtime=python314 \
     --region="$REGION" \
     --source=. \
     --entry-point=publishing_catchup \

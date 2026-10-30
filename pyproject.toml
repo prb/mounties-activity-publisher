@@ -3,7 +3,7 @@ name = "mounties-discord-publisher"
 version = "0.1.0"
 description = "Publishes Mountaineers backcountry ski activities to a Discord channel."
 readme = "README.md"
-requires-python = ">=3.13"
+requires-python = ">=3.14"
 dependencies = [
     "firebase-admin>=7.1.0",
     "functions-framework>=3.9.2",
