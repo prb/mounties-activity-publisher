@@ -1,3 +1,5 @@
+> **Historical document.** This describes the original phased build and is out of date (for example, it predates the single-pass searcher from issue #31 and the Pulumi deployment). See [spec.md](../../spec.md) and [OPERATIONS.md](../../OPERATIONS.md) for current information. Slated for eventual deletion.
+
 # Phase 5: Cloud Tasks Configuration & Deployment
 
 This phase covers deploying the application to Google Cloud Platform with Cloud Functions and Cloud Tasks.

@@ -1,3 +1,5 @@
+> **Historical document.** This describes the original phased build and is out of date (for example, it predates the single-pass searcher from issue #31 and the Pulumi deployment). See [spec.md](../../spec.md) and [OPERATIONS.md](../../OPERATIONS.md) for current information. Slated for eventual deletion.
+
 ## Phase 3: Searcher & Detail Scraper Functions
 
 This phase implements the core Cloud Functions that tie together parsing (Phase 1) and Firestore operations (Phase 2) with HTTP fetching and Cloud Tasks enqueueing.
