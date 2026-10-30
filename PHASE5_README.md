@@ -156,7 +156,7 @@ If you prefer to deploy manually:
 ```bash
 gcloud functions deploy searcher \
     --gen2 \
-    --runtime=python313 \
+    --runtime=python314 \
     --region=us-central1 \
     --source=. \
     --entry-point=searcher \
@@ -172,7 +172,7 @@ gcloud functions deploy searcher \
 ```bash
 gcloud functions deploy scraper \
     --gen2 \
-    --runtime=python313 \
+    --runtime=python314 \
     --region=us-central1 \
     --source=. \
     --entry-point=scraper \
@@ -188,7 +188,7 @@ gcloud functions deploy scraper \
 ```bash
 gcloud functions deploy publisher \
     --gen2 \
-    --runtime=python313 \
+    --runtime=python314 \
     --region=us-central1 \
     --source=. \
     --entry-point=publisher \
@@ -382,7 +382,7 @@ To update the code after making changes:
 # Option 2: Deploy specific function
 gcloud functions deploy searcher \
     --gen2 \
-    --runtime=python313 \
+    --runtime=python314 \
     --region=us-central1 \
     --source=.
 ```

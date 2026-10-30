@@ -21,7 +21,6 @@ from src.functions import (
 
 
 # Configure logging
-# Configure logging
 import google.cloud.logging
 try:
     client = google.cloud.logging.Client()
