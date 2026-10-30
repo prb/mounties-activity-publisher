@@ -1,6 +1,8 @@
 """Discord client for publishing messages."""
 
+import logging
 import os
+import time
 import requests
 from datetime import datetime
 from typing import Optional
@@ -9,8 +11,36 @@ import pytz
 from .models import Activity
 
 
+logger = logging.getLogger(__name__)
+
 # Discord API base URL
 DISCORD_API_BASE = 'https://discord.com/api/v10'
+
+# Rate limiting (HTTP 429): honor Discord's Retry-After and retry in-line, but
+# never wait more than this many seconds in total. Beyond that, give up and let
+# the publishing catchup function retry later.
+MAX_RATE_LIMIT_WAIT_SECONDS = 30.0
+MAX_SEND_ATTEMPTS = 3
+
+
+class DiscordRateLimitError(Exception):
+    """Raised when Discord keeps rate limiting (429) beyond our in-line wait budget."""
+
+    def __init__(self, retry_after: float):
+        super().__init__(f"Discord rate limited (retry after {retry_after:g}s)")
+        self.retry_after = retry_after
+
+
+def _retry_after_seconds(response: requests.Response) -> float:
+    """Seconds Discord asks us to wait, from the Retry-After header or JSON body."""
+    try:
+        return max(float(response.headers['Retry-After']), 0.0)
+    except (KeyError, TypeError, ValueError):
+        pass
+    try:
+        return max(float(response.json()['retry_after']), 0.0)
+    except (KeyError, TypeError, ValueError):
+        return 1.0
 
 # Version for User-Agent
 VERSION = os.environ.get('APP_VERSION', 'dev')
@@ -273,8 +303,21 @@ def send_discord_message(content: str, channel_id: Optional[str] = None, bot_tok
         'content': content,
     }
 
-    # Send request
-    response = requests.post(url, headers=headers, json=payload, timeout=30)
+    # Send request, honoring Discord's Retry-After on 429 within a bounded wait
+    waited = 0.0
+    attempt = 1
+    while True:
+        response = requests.post(url, headers=headers, json=payload, timeout=30)
+        if response.status_code != 429:
+            break
+        retry_after = _retry_after_seconds(response)
+        if attempt >= MAX_SEND_ATTEMPTS or waited + retry_after > MAX_RATE_LIMIT_WAIT_SECONDS:
+            logger.warning(f"Discord rate limited (429); giving up (retry after {retry_after:g}s)")
+            raise DiscordRateLimitError(retry_after)
+        logger.warning(f"Discord rate limited (429); retrying in {retry_after:g}s (attempt {attempt})")
+        time.sleep(retry_after)
+        waited += retry_after
+        attempt += 1
     response.raise_for_status()
 
     # Extract message ID from response

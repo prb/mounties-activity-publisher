@@ -139,7 +139,15 @@ The following configuration information will be stored:
 
 The default schedule for search execution should be every hour on the hour.  The default schedule for publishing cleanup should be every hour on the half hour.
 
-All functions should respond gracefull to `429` response codes and log an informative message. *(Not yet implemented; tracked in [issue #52](https://github.com/prb/mounties-activity-publisher/issues/52).)*  Rate limits, concurrency, and backoff should be as follows:
+Functions that call external services should respond gracefully to `429` response codes, log an informative message, and record `Yellow: Backing off.` in the bookkeeping status:
+
+- **Publisher (Discord):** Honor the `Retry-After` value that Discord returns and retry in-line, with at most three attempts and at most 30 seconds of total waiting. If the limit is still in effect after that, stop, record `Yellow: Backing off.`, and return an error result; the publishing catchup function retries later. (The function still returns a normal HTTP response, so Cloud Tasks does not retry it.)
+- **Searcher (Mountaineers):** No in-line retry. Record `Yellow: Backing off.` and return an error result; the next scheduled search is the retry.
+- The dormant scraper has no special `429` handling.
+
+The next successful execution of a function records `Green` again.
+
+Rate limits, concurrency, and backoff should be as follows:
 
 - Search queue: 10rpm, concurrency one, three retries, 10s initial backoff, doubling up to 60s
 - Scrape queue: 30rpm, concurrency five, three retries, 10s initial backoff, doubling up to 120s
@@ -220,7 +228,7 @@ The `bookkeeping` collection contains a single document with the ID `status` and
 The status message should be one of:
 
 - `Green` if the function completed successfully.
-- `Yellow: Backing off.` if the function is in backoff due to a `429` *(not yet implemented; see [issue #52](https://github.com/prb/mounties-activity-publisher/issues/52))*
+- `Yellow: Backing off.` if the function is in backoff due to a `429` (publisher and searcher only; see *Scheduling, Retries, Backoff, and Catchup*)
 - `Red: {message}` if the function failed, and `{message}` is a descriptive message.
 
 ### System Configuration Collection

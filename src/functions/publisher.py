@@ -5,7 +5,7 @@ from typing import Dict, Any
 from datetime import datetime, timezone
 
 from ..db import get_activity, update_discord_message_id, update_publish_status
-from ..discord_client import publish_activity_to_discord
+from ..discord_client import DiscordRateLimitError, publish_activity_to_discord
 
 
 logger = logging.getLogger(__name__)
@@ -80,6 +80,16 @@ def publisher_handler(activity_id: str = None) -> Dict[str, Any]:
         return {
             'status': 'success',
             'message_id': message_id,
+        }
+
+    except DiscordRateLimitError as e:
+        # Still rate limited after waiting; the catchup function will retry.
+        logger.warning(f"Publishing backed off: {e}")
+        update_publish_status("Yellow: Backing off.")
+
+        return {
+            'status': 'error',
+            'error': str(e),
         }
 
     except Exception as e:
